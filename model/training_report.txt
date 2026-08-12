@@ -1,0 +1,35 @@
+Training data: training_video_features_6_from_previous_dataset.csv
+Rows used: 4500
+Features: ['pause_frequency', 'navigation_count_video', 'rewatch_segments', 'playback_rate_change', 'idle_duration_video', 'time_on_content']
+
+Class distribution:
+cognitive_load
+1     990
+2    1170
+3    1080
+4     810
+5     450
+
+Accuracy: 0.7400
+Average confidence: 0.7379
+Median confidence: 0.7569
+
+Classification report:
+              precision    recall  f1-score   support
+
+           1     0.7026    0.8232    0.7581       198
+           2     0.6923    0.6154    0.6516       234
+           3     0.7525    0.7037    0.7273       216
+           4     0.7882    0.8272    0.8072       162
+           5     0.8295    0.8111    0.8202        90
+
+    accuracy                         0.7400       900
+   macro avg     0.7530    0.7561    0.7529       900
+weighted avg     0.7400    0.7400    0.7381       900
+
+Confusion matrix:
+[[163  30   5   0   0]
+ [ 58 144  32   0   0]
+ [ 11  34 152  19   0]
+ [  0   0  13 134  15]
+ [  0   0   0  17  73]]

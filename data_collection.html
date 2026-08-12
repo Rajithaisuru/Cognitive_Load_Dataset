@@ -1,0 +1,389 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cognitive Load Data Collection</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 28px;
+            color: #111;
+        }
+
+        main {
+            max-width: 760px;
+        }
+
+        video {
+            display: block;
+            width: 100%;
+            max-width: 720px;
+            margin: 18px 0;
+            background: #000;
+        }
+
+        label {
+            display: block;
+            font-weight: bold;
+            margin-bottom: 6px;
+        }
+
+        input, select, button {
+            font-size: 16px;
+            padding: 8px 10px;
+        }
+
+        button {
+            cursor: pointer;
+        }
+
+        .setup, .status, .paas-panel {
+            border: 1px solid #ccc;
+            border-radius: 8px;
+            padding: 14px;
+            margin: 12px 0;
+        }
+
+        .row {
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap;
+            align-items: end;
+        }
+
+        .hidden {
+            display: none;
+        }
+
+        .paas-buttons {
+            display: grid;
+            grid-template-columns: repeat(9, 1fr);
+            gap: 8px;
+            margin-top: 12px;
+        }
+
+        .paas-buttons button {
+            min-height: 42px;
+        }
+    </style>
+</head>
+<body>
+    <main>
+        <h2>Video-Based Cognitive Load Data Collection</h2>
+
+        <section class="setup" id="setupPanel">
+            <div class="row">
+                <div>
+                    <label for="participantCode">Anonymous participant code</label>
+                    <input id="participantCode" placeholder="Example: P7K2M9" autocomplete="off">
+                </div>
+                <div>
+                    <label for="lessonId">Lesson</label>
+                    <select id="lessonId">
+                        <option
+                            value="L101"
+                            data-video-url="https://res.cloudinary.com/zg8dorc2/video/upload/v1786546595/Enterprise_Applications.mp4"
+                        >
+                            L101 - Enterprise Applications
+                        </option>
+                        <option
+                            value="L102"
+                            data-video-url="https://res.cloudinary.com/zg8dorc2/video/upload/v1786546159/event_driven_microservice.mp4"
+                        >
+                            L102 - Event Driven Microservice
+                        </option>
+                    </select>
+                </div>
+                <button id="startBtn">Start Session</button>
+            </div>
+        </section>
+
+        <video id="learningVideo" controls disabled>
+            Your browser does not support the video tag.
+        </video>
+
+        <section class="status">
+            <p><strong>Session:</strong> <span id="sessionStatus">Not started</span></p>
+            <p><strong>Current window:</strong> <span id="windowStatus">-</span></p>
+            <p><strong>Event status:</strong> <span id="eventStatus">Waiting...</span></p>
+        </section>
+
+        <section class="paas-panel hidden" id="paasPanel">
+            <h3>Segment Rating</h3>
+            <p>How much mental effort did you invest in understanding this segment?</p>
+            <p>1 = very low mental effort, 9 = very high mental effort</p>
+            <div class="paas-buttons" id="paasButtons"></div>
+        </section>
+    </main>
+
+    <script>
+        const API_BASE_URL = "http://127.0.0.1:8000";
+        const WINDOW_SECONDS = 120;
+        const IDLE_THRESHOLD_MS = 30000;
+
+        const video = document.getElementById("learningVideo");
+        const participantCodeInput = document.getElementById("participantCode");
+        const lessonIdInput = document.getElementById("lessonId");
+        const startBtn = document.getElementById("startBtn");
+        const sessionStatusEl = document.getElementById("sessionStatus");
+        const windowStatusEl = document.getElementById("windowStatus");
+        const eventStatusEl = document.getElementById("eventStatus");
+        const paasPanel = document.getElementById("paasPanel");
+        const paasButtons = document.getElementById("paasButtons");
+
+        let participantId = "";
+        let lessonId = "L101";
+        let sessionId = "";
+        let minuteIndex = 1;
+        let windowStart = null;
+        let lastVideoTime = 0;
+        let seekStartTime = 0;
+        let lastInteractionTime = Date.now();
+        let idleActive = false;
+        let idleStartTime = null;
+        let segmentTimerId = null;
+        let idleTimerId = null;
+        let suppressNextPauseEvent = false;
+        let pauseFrequency = 0;
+        let navigationCountVideo = 0;
+        let rewatchSegments = 0;
+        let playbackRateChange = 0;
+        let lastCountedPlaybackRate = 1;
+        let idleDurationVideo = 0;
+
+        for (let rating = 1; rating <= 9; rating++) {
+            const button = document.createElement("button");
+            button.type = "button";
+            button.textContent = rating;
+            button.addEventListener("click", () => submitPaasRating(rating));
+            paasButtons.appendChild(button);
+        }
+
+        loadSelectedVideo();
+
+        lessonIdInput.addEventListener("change", loadSelectedVideo);
+
+        startBtn.addEventListener("click", () => {
+            participantId = participantCodeInput.value.trim().toUpperCase();
+            lessonId = lessonIdInput.value;
+
+            if (!/^[A-Z0-9]{4,12}$/.test(participantId)) {
+                eventStatusEl.textContent = "Enter a valid anonymous code, for example P7K2M9.";
+                return;
+            }
+
+            sessionId = `${participantId}-${Date.now()}`;
+            minuteIndex = 1;
+            video.disabled = false;
+            participantCodeInput.disabled = true;
+            lessonIdInput.disabled = true;
+            startBtn.disabled = true;
+            sessionStatusEl.textContent = sessionId;
+            windowStatusEl.textContent = "Waiting for first play";
+            eventStatusEl.textContent = "Session started. Press play when ready.";
+        });
+
+        function loadSelectedVideo() {
+            const selectedLesson = lessonIdInput.options[lessonIdInput.selectedIndex];
+            video.src = selectedLesson.dataset.videoUrl;
+            video.load();
+            eventStatusEl.textContent = `${selectedLesson.textContent.trim()} loaded.`;
+        }
+
+        video.addEventListener("play", () => {
+            if (windowStart === null) {
+                startNewWindow();
+            }
+
+            markInteraction();
+        });
+
+        video.addEventListener("pause", () => {
+            markInteraction();
+
+            if (suppressNextPauseEvent) {
+                suppressNextPauseEvent = false;
+                return;
+            }
+
+            pauseFrequency++;
+            eventStatusEl.textContent = `Pause count: ${pauseFrequency}`;
+        });
+
+        video.addEventListener("seeking", () => {
+            seekStartTime = lastVideoTime;
+            markInteraction();
+        });
+
+        video.addEventListener("seeked", () => {
+            const fromPosition = seekStartTime;
+            const toPosition = video.currentTime;
+            lastVideoTime = toPosition;
+            markInteraction();
+
+            navigationCountVideo++;
+            if (toPosition < fromPosition) {
+                rewatchSegments++;
+            }
+
+            eventStatusEl.textContent = `Navigation count: ${navigationCountVideo}`;
+        });
+
+        video.addEventListener("ratechange", () => {
+            markInteraction();
+            if (!sessionId || video.playbackRate === lastCountedPlaybackRate) {
+                return;
+            }
+
+            lastCountedPlaybackRate = video.playbackRate;
+            playbackRateChange++;
+            eventStatusEl.textContent = `Playback rate changes: ${playbackRateChange}`;
+        });
+
+        video.addEventListener("timeupdate", () => {
+            lastVideoTime = video.currentTime;
+        });
+
+        ["mousemove", "keydown", "click", "touchstart"].forEach((eventName) => {
+            document.addEventListener(eventName, markInteraction);
+        });
+
+        function startNewWindow() {
+            windowStart = new Date();
+            resetFeatureCounters();
+            windowStatusEl.textContent = `${minuteIndex}-${minuteIndex + 1} minutes`;
+            paasPanel.classList.add("hidden");
+            scheduleSegmentEnd();
+            startIdleMonitor();
+        }
+
+        function scheduleSegmentEnd() {
+            clearTimeout(segmentTimerId);
+            segmentTimerId = setTimeout(endCurrentSegment, WINDOW_SECONDS * 1000);
+        }
+
+        function startIdleMonitor() {
+            clearInterval(idleTimerId);
+            idleTimerId = setInterval(() => {
+                if (!sessionId || paasPanel.classList.contains("hidden") === false) {
+                    return;
+                }
+
+                const inactiveMs = Date.now() - lastInteractionTime;
+                if (!idleActive && inactiveMs >= IDLE_THRESHOLD_MS) {
+                    idleActive = true;
+                    idleStartTime = new Date();
+                    eventStatusEl.textContent = "Idle started";
+                }
+            }, 1000);
+        }
+
+        function markInteraction() {
+            lastInteractionTime = Date.now();
+
+            if (idleActive && sessionId) {
+                idleActive = false;
+                addIdleDuration();
+                eventStatusEl.textContent = "Idle ended";
+            }
+        }
+
+        function endCurrentSegment() {
+            if (!sessionId) {
+                return;
+            }
+
+            if (idleActive) {
+                idleActive = false;
+                addIdleDuration();
+            }
+
+            suppressNextPauseEvent = true;
+            video.pause();
+            paasPanel.classList.remove("hidden");
+            eventStatusEl.textContent = "Video paused. Please submit the mental effort rating.";
+        }
+
+        async function submitPaasRating(rating) {
+            const windowEnd = new Date();
+            const payload = {
+                student_id: participantId,
+                lesson_id: lessonId,
+                session_id: sessionId,
+                minute_index: minuteIndex,
+                window_start: windowStart.toISOString(),
+                window_end: windowEnd.toISOString(),
+            };
+            const featureWindowPayload = {
+                ...payload,
+                pause_frequency: pauseFrequency,
+                navigation_count_video: navigationCountVideo,
+                rewatch_segments: rewatchSegments,
+                playback_rate_change: playbackRateChange,
+                idle_duration_video: idleDurationVideo,
+                time_on_content: getTimeOnContent(windowEnd),
+            };
+
+            try {
+                const featureResult = await postJson("/feature-windows", featureWindowPayload);
+                const paasResult = await postJson("/paas-ratings", {
+                    ...payload,
+                    paas_rating: rating,
+                });
+
+                eventStatusEl.textContent =
+                    `Saved window ${minuteIndex}. ` +
+                    `Features MySQL: ${featureResult.saved_to_mysql}, CSV: ${featureResult.saved_to_csv}. ` +
+                    `Paas MySQL: ${paasResult.saved_to_mysql}, CSV: ${paasResult.saved_to_csv}.`;
+                minuteIndex += 2;
+                startNewWindow();
+                await video.play();
+            } catch (error) {
+                console.error(error);
+                eventStatusEl.textContent = "Save failed. Check API and MySQL connection, then try again.";
+            }
+        }
+
+        function resetFeatureCounters() {
+            pauseFrequency = 0;
+            navigationCountVideo = 0;
+            rewatchSegments = 0;
+            playbackRateChange = 0;
+            lastCountedPlaybackRate = video.playbackRate;
+            idleDurationVideo = 0;
+            idleActive = false;
+            idleStartTime = null;
+        }
+
+        function addIdleDuration() {
+            if (!idleStartTime) {
+                return;
+            }
+
+            idleDurationVideo += Math.max(Math.round((new Date() - idleStartTime) / 1000), 0);
+            idleStartTime = null;
+        }
+
+        function getTimeOnContent(windowEnd) {
+            const windowDuration = Math.max(Math.round((windowEnd - windowStart) / 1000), 0);
+            return Math.max(windowDuration - idleDurationVideo, 0);
+        }
+
+        async function postJson(path, body) {
+            const response = await fetch(`${API_BASE_URL}${path}`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(body),
+            });
+            const payload = await response.json();
+
+            if (!response.ok) {
+                throw new Error(payload?.detail || "Request failed");
+            }
+
+            return payload;
+        }
+    </script>
+</body>
+</html>

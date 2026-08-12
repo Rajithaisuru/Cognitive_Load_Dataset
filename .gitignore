@@ -1,0 +1,28 @@
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+coverage.xml
+htmlcov/
+.env
+.env.*
+!.env.example
+
+# Local research data/backups should not be committed.
+data_backups/*.csv
+!data_backups/.gitkeep
+
+# Model binaries can be large and are not needed for data-collection mode.
+model/*.pkl
+
+# Local spreadsheet/export artifacts.
+*.xlsx
+*.xls
+.DS_Store
+Thumbs.db
