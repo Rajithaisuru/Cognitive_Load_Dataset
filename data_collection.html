@@ -145,6 +145,7 @@
         let segmentTimerId = null;
         let idleTimerId = null;
         let seekEndTimerId = null;
+        let pauseTimerId = null;
         let suppressNextPauseEvent = false;
         let isSeeking = false;
         let pendingSeekFromTime = null;
@@ -211,11 +212,23 @@
                 return;
             }
 
-            pauseFrequency++;
-            eventStatusEl.textContent = `Pause count: ${pauseFrequency}`;
+            clearTimeout(pauseTimerId);
+            pauseTimerId = setTimeout(() => {
+                pauseTimerId = null;
+
+                if (isSeeking || seekEndTimerId) {
+                    return;
+                }
+
+                pauseFrequency++;
+                eventStatusEl.textContent = `Pause count: ${pauseFrequency}`;
+            }, 350);
         });
 
         video.addEventListener("seeking", () => {
+            clearTimeout(pauseTimerId);
+            pauseTimerId = null;
+
             if (!isSeeking) {
                 seekStartTime = lastVideoTime;
                 pendingSeekFromTime = lastVideoTime;
@@ -362,6 +375,8 @@
             isSeeking = false;
             pendingSeekFromTime = null;
             pendingSeekToTime = null;
+            clearTimeout(pauseTimerId);
+            pauseTimerId = null;
             clearTimeout(seekEndTimerId);
             seekEndTimerId = null;
         }
