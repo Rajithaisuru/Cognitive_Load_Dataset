@@ -487,7 +487,7 @@
             markInteraction();
 
             clearTimeout(seekEndTimerId);
-            seekEndTimerId = setTimeout(finalizeSeekNavigation, 700);
+            seekEndTimerId = setTimeout(finalizeSeekNavigation, 150);
         });
 
         video.addEventListener("ratechange", () => {
@@ -502,9 +502,16 @@
         });
 
         video.addEventListener("timeupdate", () => {
-            lastVideoTime = video.currentTime;
+            const currentVideoTime = video.currentTime;
+            const timeJump = Math.abs(currentVideoTime - lastVideoTime);
+
+            if (!isSeeking && !seekEndTimerId && sessionId && timeJump > 2) {
+                countNavigationIfNeeded(lastVideoTime, currentVideoTime);
+            }
+
+            lastVideoTime = currentVideoTime;
             if (!isSeeking && !seekEndTimerId) {
-                lastStableVideoTime = video.currentTime;
+                lastStableVideoTime = currentVideoTime;
             }
         });
 
