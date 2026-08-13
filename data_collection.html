@@ -5,22 +5,42 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Cognitive Load Data Collection</title>
     <style>
+        :root {
+            --bg: #f4f7fb;
+            --panel: #ffffff;
+            --ink: #172033;
+            --muted: #697386;
+            --line: #d8e0eb;
+            --accent: #2563eb;
+            --accent-dark: #1d4ed8;
+            --success: #047857;
+            --warning-bg: #fff7ed;
+            --warning-line: #fdba74;
+            --shadow: 0 18px 45px rgba(23, 32, 51, 0.1);
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
         body {
             font-family: Arial, sans-serif;
-            margin: 28px;
-            color: #111;
+            margin: 0;
+            color: var(--ink);
+            background: var(--bg);
         }
 
         main {
-            max-width: 760px;
+            width: min(1180px, calc(100% - 32px));
+            margin: 24px auto;
         }
 
         video {
             display: block;
             width: 100%;
-            max-width: 720px;
-            margin: 18px 0;
+            aspect-ratio: 16 / 9;
             background: #000;
+            border-radius: 10px;
         }
 
         label {
@@ -31,18 +51,84 @@
 
         input, select, button {
             font-size: 16px;
-            padding: 8px 10px;
+            padding: 10px 12px;
+            border: 1px solid var(--line);
+            border-radius: 8px;
+            background: #fff;
+            color: var(--ink);
+        }
+
+        input {
+            width: 230px;
+            text-transform: uppercase;
+        }
+
+        select {
+            min-width: 270px;
         }
 
         button {
             cursor: pointer;
+            font-weight: bold;
+            transition: background 0.2s ease, transform 0.2s ease;
         }
 
-        .setup, .status, .paas-panel {
-            border: 1px solid #ccc;
-            border-radius: 8px;
-            padding: 14px;
-            margin: 12px 0;
+        button:hover {
+            transform: translateY(-1px);
+        }
+
+        h2 {
+            margin: 0;
+            font-size: 28px;
+        }
+
+        .page-header {
+            display: flex;
+            justify-content: space-between;
+            gap: 16px;
+            align-items: end;
+            margin-bottom: 18px;
+        }
+
+        .subtitle {
+            margin: 6px 0 0;
+            color: var(--muted);
+            font-size: 15px;
+        }
+
+        .setup, .status, .paas-panel, .video-panel {
+            border: 1px solid var(--line);
+            border-radius: 12px;
+            background: var(--panel);
+            box-shadow: var(--shadow);
+        }
+
+        .setup {
+            padding: 16px;
+            margin-bottom: 16px;
+        }
+
+        .workspace {
+            display: grid;
+            grid-template-columns: 330px minmax(0, 1fr);
+            gap: 18px;
+            align-items: start;
+        }
+
+        .side-panel {
+            position: sticky;
+            top: 18px;
+            display: grid;
+            gap: 14px;
+        }
+
+        .status, .paas-panel {
+            padding: 18px;
+            margin: 0;
+        }
+
+        .video-panel {
+            padding: 16px;
         }
 
         .row {
@@ -56,21 +142,138 @@
             display: none;
         }
 
+        .metric {
+            padding: 12px 0;
+            border-bottom: 1px solid var(--line);
+        }
+
+        .metric:last-child {
+            border-bottom: 0;
+        }
+
+        .metric-label {
+            display: block;
+            color: var(--muted);
+            font-size: 12px;
+            font-weight: bold;
+            text-transform: uppercase;
+        }
+
+        .metric-value {
+            display: block;
+            margin-top: 4px;
+            font-size: 15px;
+            overflow-wrap: anywhere;
+        }
+
+        #startBtn {
+            border-color: var(--accent);
+            background: var(--accent);
+            color: #fff;
+            min-width: 132px;
+        }
+
+        #startBtn:hover {
+            background: var(--accent-dark);
+        }
+
+        #startBtn:disabled {
+            cursor: not-allowed;
+            opacity: 0.55;
+            transform: none;
+        }
+
+        .paas-panel {
+            border-color: var(--warning-line);
+            background: var(--warning-bg);
+        }
+
+        .paas-panel h3 {
+            margin: 0 0 10px;
+            font-size: 22px;
+        }
+
+        .paas-panel p {
+            margin: 8px 0;
+            color: #3b4354;
+        }
+
         .paas-buttons {
             display: grid;
-            grid-template-columns: repeat(9, 1fr);
+            grid-template-columns: repeat(3, 1fr);
             gap: 8px;
-            margin-top: 12px;
+            margin-top: 14px;
         }
 
         .paas-buttons button {
-            min-height: 42px;
+            min-height: 48px;
+            border-color: #fed7aa;
+            background: #fff;
+            color: #9a3412;
+            font-size: 17px;
+        }
+
+        .paas-buttons button:hover {
+            background: #ffedd5;
+        }
+
+        .video-title {
+            display: flex;
+            justify-content: space-between;
+            gap: 12px;
+            align-items: center;
+            margin-bottom: 12px;
+        }
+
+        .video-title h3 {
+            margin: 0;
+            font-size: 18px;
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 6px 10px;
+            border-radius: 999px;
+            background: #e0f2fe;
+            color: #075985;
+            font-size: 13px;
+            font-weight: bold;
+        }
+
+        @media (max-width: 900px) {
+            .workspace {
+                grid-template-columns: 1fr;
+            }
+
+            .side-panel {
+                position: static;
+                order: 2;
+            }
+
+            .video-panel {
+                order: 1;
+            }
+
+            input, select {
+                width: 100%;
+                min-width: 0;
+            }
+
+            .row > div, #startBtn {
+                width: 100%;
+            }
         }
     </style>
 </head>
 <body>
     <main>
-        <h2>Video-Based Cognitive Load Data Collection</h2>
+        <header class="page-header">
+            <div>
+                <h2>Video-Based Cognitive Load Data Collection</h2>
+                <p class="subtitle">Watch the assigned lesson video and submit the segment rating when prompted.</p>
+            </div>
+            <span class="badge">Research Session</span>
+        </header>
 
         <section class="setup" id="setupPanel">
             <div class="row">
@@ -99,22 +302,41 @@
             </div>
         </section>
 
-        <video id="learningVideo" controls disabled>
-            Your browser does not support the video tag.
-        </video>
+        <div class="workspace">
+            <aside class="side-panel">
+                <section class="status">
+                    <div class="metric">
+                        <span class="metric-label">Session</span>
+                        <span class="metric-value" id="sessionStatus">Not started</span>
+                    </div>
+                    <div class="metric">
+                        <span class="metric-label">Current window</span>
+                        <span class="metric-value" id="windowStatus">-</span>
+                    </div>
+                    <div class="metric">
+                        <span class="metric-label">Event status</span>
+                        <span class="metric-value" id="eventStatus">Waiting...</span>
+                    </div>
+                </section>
 
-        <section class="status">
-            <p><strong>Session:</strong> <span id="sessionStatus">Not started</span></p>
-            <p><strong>Current window:</strong> <span id="windowStatus">-</span></p>
-            <p><strong>Event status:</strong> <span id="eventStatus">Waiting...</span></p>
-        </section>
+                <section class="paas-panel hidden" id="paasPanel">
+                    <h3>Segment Rating</h3>
+                    <p>How much mental effort did you invest in understanding this segment?</p>
+                    <p>1 = very low, 9 = very high</p>
+                    <div class="paas-buttons" id="paasButtons"></div>
+                </section>
+            </aside>
 
-        <section class="paas-panel hidden" id="paasPanel">
-            <h3>Segment Rating</h3>
-            <p>How much mental effort did you invest in understanding this segment?</p>
-            <p>1 = very low mental effort, 9 = very high mental effort</p>
-            <div class="paas-buttons" id="paasButtons"></div>
-        </section>
+            <section class="video-panel">
+                <div class="video-title">
+                    <h3>Learning Video</h3>
+                    <span class="badge" id="lessonBadge">L101</span>
+                </div>
+                <video id="learningVideo" controls disabled>
+                    Your browser does not support the video tag.
+                </video>
+            </section>
+        </div>
     </main>
 
     <script>
@@ -129,6 +351,7 @@
         const sessionStatusEl = document.getElementById("sessionStatus");
         const windowStatusEl = document.getElementById("windowStatus");
         const eventStatusEl = document.getElementById("eventStatus");
+        const lessonBadgeEl = document.getElementById("lessonBadge");
         const paasPanel = document.getElementById("paasPanel");
         const paasButtons = document.getElementById("paasButtons");
 
@@ -196,6 +419,7 @@
             const selectedLesson = lessonIdInput.options[lessonIdInput.selectedIndex];
             video.src = selectedLesson.dataset.videoUrl;
             video.load();
+            lessonBadgeEl.textContent = selectedLesson.value;
             eventStatusEl.textContent = `${selectedLesson.textContent.trim()} loaded.`;
         }
 
