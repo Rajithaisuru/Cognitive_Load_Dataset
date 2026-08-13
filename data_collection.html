@@ -145,6 +145,7 @@
         let segmentTimerId = null;
         let idleTimerId = null;
         let suppressNextPauseEvent = false;
+        let isSeeking = false;
         let pauseFrequency = 0;
         let navigationCountVideo = 0;
         let rewatchSegments = 0;
@@ -202,7 +203,7 @@
         video.addEventListener("pause", () => {
             markInteraction();
 
-            if (suppressNextPauseEvent) {
+            if (suppressNextPauseEvent || isSeeking) {
                 suppressNextPauseEvent = false;
                 return;
             }
@@ -213,6 +214,7 @@
 
         video.addEventListener("seeking", () => {
             seekStartTime = lastVideoTime;
+            isSeeking = true;
             markInteraction();
         });
 
@@ -228,6 +230,10 @@
             }
 
             eventStatusEl.textContent = `Navigation count: ${navigationCountVideo}`;
+
+            setTimeout(() => {
+                isSeeking = false;
+            }, 250);
         });
 
         video.addEventListener("ratechange", () => {
