@@ -139,6 +139,7 @@
         let windowStart = null;
         let lastVideoTime = 0;
         let seekStartTime = 0;
+        let lastStableVideoTime = 0;
         let lastInteractionTime = Date.now();
         let idleActive = false;
         let idleStartTime = null;
@@ -150,6 +151,7 @@
         let isSeeking = false;
         let pendingSeekFromTime = null;
         let pendingSeekToTime = null;
+        let pointerDownVideoTime = null;
         let pauseFrequency = 0;
         let navigationCountVideo = 0;
         let rewatchSegments = 0;
@@ -225,13 +227,19 @@
             }, 350);
         });
 
+        ["pointerdown", "mousedown", "touchstart"].forEach((eventName) => {
+            video.addEventListener(eventName, () => {
+                pointerDownVideoTime = lastStableVideoTime || video.currentTime;
+            });
+        });
+
         video.addEventListener("seeking", () => {
             clearTimeout(pauseTimerId);
             pauseTimerId = null;
 
             if (!isSeeking) {
-                seekStartTime = lastVideoTime;
-                pendingSeekFromTime = lastVideoTime;
+                seekStartTime = pointerDownVideoTime ?? lastStableVideoTime ?? lastVideoTime;
+                pendingSeekFromTime = seekStartTime;
             }
 
             isSeeking = true;
@@ -261,6 +269,9 @@
 
         video.addEventListener("timeupdate", () => {
             lastVideoTime = video.currentTime;
+            if (!isSeeking && !seekEndTimerId) {
+                lastStableVideoTime = video.currentTime;
+            }
         });
 
         ["mousemove", "keydown", "click", "touchstart"].forEach((eventName) => {
@@ -375,6 +386,8 @@
             isSeeking = false;
             pendingSeekFromTime = null;
             pendingSeekToTime = null;
+            pointerDownVideoTime = null;
+            lastStableVideoTime = video.currentTime;
             clearTimeout(pauseTimerId);
             pauseTimerId = null;
             clearTimeout(seekEndTimerId);
@@ -390,6 +403,7 @@
             seekEndTimerId = null;
             pendingSeekFromTime = null;
             pendingSeekToTime = null;
+            pointerDownVideoTime = null;
 
             if (!sessionId || seekDistance < 1) {
                 return;
