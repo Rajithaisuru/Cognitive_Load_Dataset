@@ -152,6 +152,7 @@
         let pendingSeekFromTime = null;
         let pendingSeekToTime = null;
         let pointerDownVideoTime = null;
+        let lastNavigationCountedAt = 0;
         let pauseFrequency = 0;
         let navigationCountVideo = 0;
         let rewatchSegments = 0;
@@ -230,6 +231,15 @@
         ["pointerdown", "mousedown", "touchstart"].forEach((eventName) => {
             video.addEventListener(eventName, () => {
                 pointerDownVideoTime = lastStableVideoTime || video.currentTime;
+            });
+        });
+
+        ["pointerup", "mouseup", "touchend", "click"].forEach((eventName) => {
+            video.addEventListener(eventName, () => {
+                const fromPosition = pointerDownVideoTime;
+                setTimeout(() => {
+                    countNavigationIfNeeded(fromPosition, video.currentTime);
+                }, 150);
             });
         });
 
@@ -397,7 +407,6 @@
         function finalizeSeekNavigation() {
             const fromPosition = pendingSeekFromTime ?? seekStartTime;
             const toPosition = pendingSeekToTime ?? video.currentTime;
-            const seekDistance = Math.abs(toPosition - fromPosition);
 
             isSeeking = false;
             seekEndTimerId = null;
@@ -405,15 +414,33 @@
             pendingSeekToTime = null;
             pointerDownVideoTime = null;
 
+            countNavigationIfNeeded(fromPosition, toPosition);
+        }
+
+        function countNavigationIfNeeded(fromPosition, toPosition) {
+            if (fromPosition === null || fromPosition === undefined) {
+                return;
+            }
+
+            const seekDistance = Math.abs(toPosition - fromPosition);
+
             if (!sessionId || seekDistance < 1) {
                 return;
             }
+
+            const now = Date.now();
+            if (now - lastNavigationCountedAt < 800) {
+                return;
+            }
+
+            lastNavigationCountedAt = now;
 
             navigationCountVideo++;
             if (toPosition < fromPosition) {
                 rewatchSegments++;
             }
 
+            lastStableVideoTime = toPosition;
             eventStatusEl.textContent = `Navigation count: ${navigationCountVideo}`;
         }
 
