@@ -144,8 +144,11 @@
         let idleStartTime = null;
         let segmentTimerId = null;
         let idleTimerId = null;
+        let seekEndTimerId = null;
         let suppressNextPauseEvent = false;
         let isSeeking = false;
+        let pendingSeekFromTime = null;
+        let pendingSeekToTime = null;
         let pauseFrequency = 0;
         let navigationCountVideo = 0;
         let rewatchSegments = 0;
@@ -203,7 +206,7 @@
         video.addEventListener("pause", () => {
             markInteraction();
 
-            if (suppressNextPauseEvent || isSeeking) {
+            if (suppressNextPauseEvent || isSeeking || seekEndTimerId) {
                 suppressNextPauseEvent = false;
                 return;
             }
@@ -213,27 +216,23 @@
         });
 
         video.addEventListener("seeking", () => {
-            seekStartTime = lastVideoTime;
+            if (!isSeeking) {
+                seekStartTime = lastVideoTime;
+                pendingSeekFromTime = lastVideoTime;
+            }
+
             isSeeking = true;
+            clearTimeout(seekEndTimerId);
             markInteraction();
         });
 
         video.addEventListener("seeked", () => {
-            const fromPosition = seekStartTime;
-            const toPosition = video.currentTime;
-            lastVideoTime = toPosition;
+            pendingSeekToTime = video.currentTime;
+            lastVideoTime = pendingSeekToTime;
             markInteraction();
 
-            navigationCountVideo++;
-            if (toPosition < fromPosition) {
-                rewatchSegments++;
-            }
-
-            eventStatusEl.textContent = `Navigation count: ${navigationCountVideo}`;
-
-            setTimeout(() => {
-                isSeeking = false;
-            }, 250);
+            clearTimeout(seekEndTimerId);
+            seekEndTimerId = setTimeout(finalizeSeekNavigation, 700);
         });
 
         video.addEventListener("ratechange", () => {
@@ -360,6 +359,33 @@
             idleDurationVideo = 0;
             idleActive = false;
             idleStartTime = null;
+            isSeeking = false;
+            pendingSeekFromTime = null;
+            pendingSeekToTime = null;
+            clearTimeout(seekEndTimerId);
+            seekEndTimerId = null;
+        }
+
+        function finalizeSeekNavigation() {
+            const fromPosition = pendingSeekFromTime ?? seekStartTime;
+            const toPosition = pendingSeekToTime ?? video.currentTime;
+            const seekDistance = Math.abs(toPosition - fromPosition);
+
+            isSeeking = false;
+            seekEndTimerId = null;
+            pendingSeekFromTime = null;
+            pendingSeekToTime = null;
+
+            if (!sessionId || seekDistance < 1) {
+                return;
+            }
+
+            navigationCountVideo++;
+            if (toPosition < fromPosition) {
+                rewatchSegments++;
+            }
+
+            eventStatusEl.textContent = `Navigation count: ${navigationCountVideo}`;
         }
 
         function addIdleDuration() {
