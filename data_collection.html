@@ -419,7 +419,18 @@
 
         loadSelectedVideo();
 
-        lessonIdInput.addEventListener("change", loadSelectedVideo);
+        lessonIdInput.addEventListener("change", () => {
+            loadSelectedVideo();
+
+            if (participantId || sessionId) {
+                participantId = "";
+                sessionId = "";
+                participantCodeInput.value = "";
+                generateCodeBtn.disabled = false;
+                sessionStatusEl.textContent = "Not started";
+                eventStatusEl.textContent = "Lesson changed. Generate a new participant code.";
+            }
+        });
 
         generateCodeBtn.addEventListener("click", generateParticipantCode);
 
@@ -456,7 +467,6 @@
                 participantId = result.student_id;
                 sessionId = result.session_id;
                 participantCodeInput.value = participantId;
-                lessonIdInput.disabled = true;
                 sessionStatusEl.textContent = sessionId;
                 eventStatusEl.textContent =
                     `Generated ${participantId}. MySQL: ${result.saved_to_mysql}, CSV: ${result.saved_to_csv}.`;
