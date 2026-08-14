@@ -4,6 +4,27 @@ from app.core.database import get_db_connection
 from app.services.paas_service import map_paas_to_cognitive_load
 
 
+def participant_code_exists(student_id: str) -> bool:
+    query = "SELECT id FROM participant_sessions WHERE student_id = %s LIMIT 1"
+    return _execute_fetch_one(query, (student_id,)) is not None
+
+
+def save_participant_session(session_data: dict):
+    query = """
+        INSERT INTO participant_sessions (
+            student_id,
+            lesson_id,
+            session_id
+        ) VALUES (%s, %s, %s)
+    """
+    values = (
+        session_data["student_id"],
+        session_data["lesson_id"],
+        session_data["session_id"],
+    )
+    return _execute_insert(query, values)
+
+
 def save_raw_interaction_event(event_data: dict):
     query = """
         INSERT INTO raw_interaction_events (
@@ -233,6 +254,27 @@ def _execute_fetch_all(query: str, values: tuple):
     except Exception as exc:
         print(f"MySQL fetch failed: {exc}")
         return []
+    finally:
+        if cursor is not None:
+            cursor.close()
+        connection.close()
+
+
+def _execute_fetch_one(query: str, values: tuple):
+    connection = get_db_connection()
+
+    if connection is None:
+        return None
+
+    cursor = None
+
+    try:
+        cursor = connection.cursor(dictionary=True)
+        cursor.execute(query, values)
+        return cursor.fetchone()
+    except Exception as exc:
+        print(f"MySQL fetch failed: {exc}")
+        return None
     finally:
         if cursor is not None:
             cursor.close()

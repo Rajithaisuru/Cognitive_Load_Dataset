@@ -2,20 +2,27 @@ from fastapi import APIRouter, HTTPException
 from fastapi.responses import StreamingResponse
 import csv
 from io import StringIO
+import secrets
+import string
+import time
 
 from app.schemas.event import RawInteractionEventInput
 from app.schemas.feature_window import FeatureWindowInput
 from app.schemas.paas import PaasRatingInput
+from app.schemas.participant import ParticipantCreateInput
 from app.schemas.raw_window import RawWindowInput
 from app.services.csv_backup_service import (
     save_feature_window_backup,
     save_paas_rating_backup,
+    save_participant_session_backup,
     save_raw_event_backup,
 )
 from app.services.db_service import (
     get_joined_dataset_rows,
+    participant_code_exists,
     save_feature_window,
     save_paas_rating,
+    save_participant_session,
     save_raw_interaction_event,
 )
 from app.services.raw_feature_service import extract_feature_window_from_raw
@@ -37,6 +44,35 @@ def health():
         "model_loaded": False,
         "prediction_enabled": False,
     }
+
+
+@router.post("/participants/create")
+def create_participant(data: ParticipantCreateInput):
+    alphabet = string.ascii_uppercase + string.digits
+
+    for _ in range(20):
+        student_id = "P" + "".join(secrets.choice(alphabet) for _ in range(5))
+        if participant_code_exists(student_id):
+            continue
+
+        session_data = {
+            "student_id": student_id,
+            "lesson_id": data.lesson_id,
+            "session_id": f"{student_id}-{int(time.time() * 1000)}",
+        }
+        session_id = save_participant_session(session_data)
+        saved_to_csv = save_participant_session_backup(session_data, mysql_id=session_id)
+
+        if session_id is not None:
+            return {
+                "student_id": student_id,
+                "session_id": session_data["session_id"],
+                "lesson_id": data.lesson_id,
+                "saved_to_mysql": True,
+                "saved_to_csv": saved_to_csv,
+            }
+
+    raise HTTPException(status_code=503, detail="Could not create a unique participant code")
 
 
 @router.post("/predict")

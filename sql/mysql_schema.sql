@@ -1,5 +1,17 @@
-CREATE DATABASE IF NOT EXISTS cognitive_load_db;
-USE cognitive_load_db;
+CREATE DATABASE IF NOT EXISTS CL_Data_Collection;
+USE CL_Data_Collection;
+
+CREATE TABLE IF NOT EXISTS participant_sessions (
+    id BIGINT NOT NULL AUTO_INCREMENT,
+    student_id VARCHAR(50) NOT NULL,
+    lesson_id VARCHAR(50) NOT NULL,
+    session_id VARCHAR(100) NOT NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (id),
+    UNIQUE KEY uq_participant_student_id (student_id),
+    UNIQUE KEY uq_participant_session_id (session_id),
+    INDEX idx_participant_lesson_created (lesson_id, created_at)
+);
 
 CREATE TABLE IF NOT EXISTS raw_interaction_events (
     id BIGINT NOT NULL AUTO_INCREMENT,

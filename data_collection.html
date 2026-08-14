@@ -59,7 +59,7 @@
         }
 
         input {
-            width: 230px;
+            width: 210px;
             text-transform: uppercase;
         }
 
@@ -138,6 +138,12 @@
             align-items: end;
         }
 
+        .participant-control {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+        }
+
         .hidden {
             display: none;
         }
@@ -173,11 +179,22 @@
             min-width: 132px;
         }
 
+        #generateCodeBtn {
+            border-color: #0f766e;
+            background: #0f766e;
+            color: #fff;
+            min-width: 142px;
+        }
+
+        #generateCodeBtn:hover {
+            background: #115e59;
+        }
+
         #startBtn:hover {
             background: var(--accent-dark);
         }
 
-        #startBtn:disabled {
+        #generateCodeBtn:disabled, #startBtn:disabled {
             cursor: not-allowed;
             opacity: 0.55;
             transform: none;
@@ -259,7 +276,12 @@
                 min-width: 0;
             }
 
-            .row > div, #startBtn {
+            .participant-control {
+                align-items: stretch;
+                flex-direction: column;
+            }
+
+            .row > div, #generateCodeBtn, #startBtn {
                 width: 100%;
             }
         }
@@ -279,7 +301,10 @@
             <div class="row">
                 <div>
                     <label for="participantCode">Anonymous participant code</label>
-                    <input id="participantCode" placeholder="Example: P7K2M9" autocomplete="off">
+                    <div class="participant-control">
+                        <input id="participantCode" placeholder="Click generate" autocomplete="off" readonly>
+                        <button id="generateCodeBtn" type="button">Generate Code</button>
+                    </div>
                 </div>
                 <div>
                     <label for="lessonId">Lesson</label>
@@ -347,6 +372,7 @@
         const video = document.getElementById("learningVideo");
         const participantCodeInput = document.getElementById("participantCode");
         const lessonIdInput = document.getElementById("lessonId");
+        const generateCodeBtn = document.getElementById("generateCodeBtn");
         const startBtn = document.getElementById("startBtn");
         const sessionStatusEl = document.getElementById("sessionStatus");
         const windowStatusEl = document.getElementById("windowStatus");
@@ -395,25 +421,52 @@
 
         lessonIdInput.addEventListener("change", loadSelectedVideo);
 
-        startBtn.addEventListener("click", () => {
-            participantId = participantCodeInput.value.trim().toUpperCase();
+        generateCodeBtn.addEventListener("click", generateParticipantCode);
+
+        startBtn.addEventListener("click", async () => {
+            if (!participantId || !sessionId) {
+                await generateParticipantCode();
+            }
+
             lessonId = lessonIdInput.value;
 
             if (!/^[A-Z0-9]{4,12}$/.test(participantId)) {
-                eventStatusEl.textContent = "Enter a valid anonymous code, for example P7K2M9.";
+                eventStatusEl.textContent = "Generate a valid anonymous participant code first.";
                 return;
             }
 
-            sessionId = `${participantId}-${Date.now()}`;
             minuteIndex = 1;
             video.disabled = false;
             participantCodeInput.disabled = true;
             lessonIdInput.disabled = true;
+            generateCodeBtn.disabled = true;
             startBtn.disabled = true;
             sessionStatusEl.textContent = sessionId;
             windowStatusEl.textContent = "Waiting for first play";
             eventStatusEl.textContent = "Session started. Press play when ready.";
         });
+
+        async function generateParticipantCode() {
+            lessonId = lessonIdInput.value;
+            generateCodeBtn.disabled = true;
+            eventStatusEl.textContent = "Generating participant code...";
+
+            try {
+                const result = await postJson("/participants/create", { lesson_id: lessonId });
+                participantId = result.student_id;
+                sessionId = result.session_id;
+                participantCodeInput.value = participantId;
+                lessonIdInput.disabled = true;
+                sessionStatusEl.textContent = sessionId;
+                eventStatusEl.textContent =
+                    `Generated ${participantId}. MySQL: ${result.saved_to_mysql}, CSV: ${result.saved_to_csv}.`;
+            } catch (error) {
+                console.error(error);
+                generateCodeBtn.disabled = false;
+                eventStatusEl.textContent = "Could not generate participant code. Check API and MySQL.";
+                throw error;
+            }
+        }
 
         function loadSelectedVideo() {
             const selectedLesson = lessonIdInput.options[lessonIdInput.selectedIndex];

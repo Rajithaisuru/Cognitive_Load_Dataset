@@ -12,6 +12,7 @@ RAW_EVENTS_CSV = BACKUP_DIR / "raw_interaction_events_backup.csv"
 FEATURE_WINDOWS_CSV = BACKUP_DIR / "feature_windows_backup.csv"
 PREDICTION_LOGS_CSV = BACKUP_DIR / "prediction_logs_backup.csv"
 PAAS_RATINGS_CSV = BACKUP_DIR / "paas_ratings_backup.csv"
+PARTICIPANT_SESSIONS_CSV = BACKUP_DIR / "participant_sessions_backup.csv"
 
 RAW_EVENT_FIELDS = [
     "id",
@@ -73,6 +74,14 @@ PAAS_RATING_FIELDS = [
     "created_at",
 ]
 
+PARTICIPANT_SESSION_FIELDS = [
+    "id",
+    "student_id",
+    "lesson_id",
+    "session_id",
+    "created_at",
+]
+
 
 def save_raw_event_backup(row: dict, mysql_id=None) -> bool:
     return _append_csv(RAW_EVENTS_CSV, RAW_EVENT_FIELDS, {**row, "id": mysql_id})
@@ -88,6 +97,10 @@ def save_prediction_log_backup(row: dict, mysql_id=None) -> bool:
 
 def save_paas_rating_backup(row: dict, mysql_id=None) -> bool:
     return _append_csv(PAAS_RATINGS_CSV, PAAS_RATING_FIELDS, {**row, "id": mysql_id})
+
+
+def save_participant_session_backup(row: dict, mysql_id=None) -> bool:
+    return _append_csv(PARTICIPANT_SESSIONS_CSV, PARTICIPANT_SESSION_FIELDS, {**row, "id": mysql_id})
 
 
 def _append_csv(file_path: Path, fieldnames: list[str], row: dict) -> bool:
