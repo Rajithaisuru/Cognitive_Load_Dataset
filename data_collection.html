@@ -96,16 +96,118 @@
             font-size: 15px;
         }
 
-        .setup, .status, .paas-panel, .video-panel {
+        .consent-card, .setup, .status, .paas-panel, .video-panel {
             border: 1px solid var(--line);
             border-radius: 12px;
             background: var(--panel);
             box-shadow: var(--shadow);
         }
 
+        .consent-card {
+            padding: 14px 16px;
+            margin-bottom: 16px;
+        }
+
         .setup {
             padding: 16px;
             margin-bottom: 16px;
+        }
+
+        .consent-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 14px;
+            flex-wrap: wrap;
+        }
+
+        .consent-check {
+            display: flex;
+            align-items: flex-start;
+            gap: 10px;
+            min-width: 260px;
+            flex: 1;
+        }
+
+        .consent-check input {
+            width: auto;
+            margin-top: 3px;
+            text-transform: none;
+        }
+
+        .consent-check label {
+            margin: 0;
+            font-weight: bold;
+            line-height: 1.4;
+        }
+
+        .consent-status {
+            color: var(--muted);
+            font-weight: bold;
+        }
+
+        .secondary-btn {
+            border-color: #bfdbfe;
+            background: #eff6ff;
+            color: #1d4ed8;
+        }
+
+        .secondary-btn:hover {
+            background: #dbeafe;
+        }
+
+        .modal-overlay {
+            position: fixed;
+            inset: 0;
+            z-index: 20;
+            display: grid;
+            place-items: center;
+            padding: 18px;
+            background: rgba(15, 23, 42, 0.55);
+        }
+
+        .modal-overlay.hidden {
+            display: none;
+        }
+
+        .modal-card {
+            width: min(680px, 100%);
+            max-height: calc(100vh - 36px);
+            overflow: auto;
+            padding: 22px;
+            border-radius: 14px;
+            background: #fff;
+            box-shadow: 0 28px 70px rgba(15, 23, 42, 0.28);
+        }
+
+        .modal-card h3 {
+            margin: 0 0 10px;
+            font-size: 22px;
+        }
+
+        .modal-meta {
+            display: grid;
+            gap: 6px;
+            margin: 12px 0;
+            color: var(--muted);
+            font-size: 14px;
+        }
+
+        .modal-card p, .modal-card li {
+            color: #3b4354;
+            line-height: 1.5;
+        }
+
+        .modal-card ul {
+            margin: 10px 0 16px;
+            padding-left: 20px;
+        }
+
+        .modal-actions {
+            display: flex;
+            justify-content: flex-end;
+            gap: 10px;
+            margin-top: 16px;
         }
 
         .workspace {
@@ -284,6 +386,15 @@
             .row > div, #generateCodeBtn, #startBtn {
                 width: 100%;
             }
+
+            .consent-row, .modal-actions {
+                align-items: stretch;
+                flex-direction: column;
+            }
+
+            .secondary-btn, #closeConsentBtn {
+                width: 100%;
+            }
         }
     </style>
 </head>
@@ -296,6 +407,13 @@
             </div>
             <span class="badge">Research Session</span>
         </header>
+
+        <section class="consent-card" id="consentPanel">
+            <div class="consent-row">
+                <span class="consent-status" id="consentStatus">Consent required before starting.</span>
+                <button class="secondary-btn" id="openConsentBtn" type="button">View Consent</button>
+            </div>
+        </section>
 
         <section class="setup" id="setupPanel">
             <div class="row">
@@ -364,12 +482,55 @@
         </div>
     </main>
 
+    <div class="modal-overlay hidden" id="consentModal" role="dialog" aria-modal="true" aria-labelledby="consentTitle">
+        <div class="modal-card">
+            <h3 id="consentTitle">Participant Consent Form</h3>
+            <div class="modal-meta">
+                <span><strong>Project:</strong> Cognitive Load Prediction System for Online Learning Using Behavioral Patterns</span>
+                <span><strong>Group ID:</strong> R26-SE-004</span>
+                <span><strong>Researcher:</strong> Subasinghe M.H.R.I. - IT22089786</span>
+                <span><strong>Institution:</strong> Sri Lanka Institute of Information Technology</span>
+                <span><strong>Date:</strong> <span id="consentDate"></span></span>
+            </div>
+            <p>
+                This study collects anonymous learner interaction data while watching educational videos to develop
+                and evaluate a real-time cognitive load prediction system.
+            </p>
+            <p>
+                If you agree, you will watch a selected educational video clip, interact normally, and provide a short
+                Paas 1-9 mental effort rating after each segment.
+            </p>
+            <ul>
+                <li>The system may collect anonymous participant code, session/video ID, video interaction events, time spent on content, and Paas ratings.</li>
+                <li>No name, password, or personal identifying information will be collected.</li>
+                <li>Data will be used only for academic research, model training, evaluation, reporting, and summarized publication.</li>
+            </ul>
+            <div class="consent-check">
+                <input id="consentAgree" type="checkbox">
+                <label for="consentAgree">
+                    I agree to participate and allow anonymous video interaction data and Paas ratings to be used for academic research.
+                </label>
+            </div>
+            <div class="modal-actions">
+                <button class="secondary-btn" id="agreeFromModalBtn" type="button">Agree</button>
+                <button id="closeConsentBtn" type="button">Close</button>
+            </div>
+        </div>
+    </div>
+
     <script>
         const API_BASE_URL = "/api";
         const WINDOW_SECONDS = 120;
         const IDLE_THRESHOLD_MS = 30000;
 
         const video = document.getElementById("learningVideo");
+        const consentAgreeInput = document.getElementById("consentAgree");
+        const consentDateEl = document.getElementById("consentDate");
+        const consentStatusEl = document.getElementById("consentStatus");
+        const consentModal = document.getElementById("consentModal");
+        const openConsentBtn = document.getElementById("openConsentBtn");
+        const closeConsentBtn = document.getElementById("closeConsentBtn");
+        const agreeFromModalBtn = document.getElementById("agreeFromModalBtn");
         const participantCodeInput = document.getElementById("participantCode");
         const lessonIdInput = document.getElementById("lessonId");
         const generateCodeBtn = document.getElementById("generateCodeBtn");
@@ -409,6 +570,10 @@
         let lastCountedPlaybackRate = 1;
         let idleDurationVideo = 0;
 
+        consentDateEl.textContent = new Date().toLocaleDateString();
+        generateCodeBtn.disabled = true;
+        startBtn.disabled = true;
+
         for (let rating = 1; rating <= 9; rating++) {
             const button = document.createElement("button");
             button.type = "button";
@@ -418,6 +583,39 @@
         }
 
         loadSelectedVideo();
+        consentModal.classList.remove("hidden");
+
+        openConsentBtn.addEventListener("click", () => {
+            consentModal.classList.remove("hidden");
+        });
+
+        closeConsentBtn.addEventListener("click", () => {
+            consentModal.classList.add("hidden");
+        });
+
+        consentModal.addEventListener("click", (event) => {
+            if (event.target === consentModal) {
+                consentModal.classList.add("hidden");
+            }
+        });
+
+        agreeFromModalBtn.addEventListener("click", () => {
+            consentAgreeInput.checked = true;
+            consentAgreeInput.dispatchEvent(new Event("change"));
+            consentModal.classList.add("hidden");
+        });
+
+        consentAgreeInput.addEventListener("change", () => {
+            const consentGiven = consentAgreeInput.checked;
+            generateCodeBtn.disabled = !consentGiven || Boolean(participantId);
+            startBtn.disabled = !consentGiven;
+            consentStatusEl.textContent = consentGiven
+                ? "Consent confirmed."
+                : "Consent required before starting.";
+            eventStatusEl.textContent = consentGiven
+                ? "Consent confirmed. Generate a participant code."
+                : "Please confirm consent before starting.";
+        });
 
         lessonIdInput.addEventListener("change", () => {
             loadSelectedVideo();
@@ -426,7 +624,7 @@
                 participantId = "";
                 sessionId = "";
                 participantCodeInput.value = "";
-                generateCodeBtn.disabled = false;
+                generateCodeBtn.disabled = !consentAgreeInput.checked;
                 sessionStatusEl.textContent = "Not started";
                 eventStatusEl.textContent = "Lesson changed. Generate a new participant code.";
             }
@@ -435,6 +633,11 @@
         generateCodeBtn.addEventListener("click", generateParticipantCode);
 
         startBtn.addEventListener("click", async () => {
+            if (!consentAgreeInput.checked) {
+                eventStatusEl.textContent = "Please confirm consent before starting.";
+                return;
+            }
+
             if (!participantId || !sessionId) {
                 await generateParticipantCode();
             }
@@ -450,6 +653,7 @@
             video.disabled = false;
             participantCodeInput.disabled = true;
             lessonIdInput.disabled = true;
+            consentAgreeInput.disabled = true;
             generateCodeBtn.disabled = true;
             startBtn.disabled = true;
             sessionStatusEl.textContent = sessionId;
@@ -458,6 +662,11 @@
         });
 
         async function generateParticipantCode() {
+            if (!consentAgreeInput.checked) {
+                eventStatusEl.textContent = "Please confirm consent before generating a code.";
+                return;
+            }
+
             lessonId = lessonIdInput.value;
             generateCodeBtn.disabled = true;
             eventStatusEl.textContent = "Generating participant code...";
