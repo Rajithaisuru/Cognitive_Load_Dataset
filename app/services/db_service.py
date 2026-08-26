@@ -149,6 +149,112 @@ def save_paas_rating(rating_data: dict):
     }
 
 
+def save_model_experiment_dataset_row(window_data: dict):
+    create_query = """
+        CREATE TABLE IF NOT EXISTS model_experiment_dataset (
+            id BIGINT NOT NULL AUTO_INCREMENT,
+            participant_id VARCHAR(50) NOT NULL,
+            lesson_id VARCHAR(50) NOT NULL,
+            session_id VARCHAR(100) DEFAULT NULL,
+            minute_index INT NOT NULL,
+            window_start DATETIME DEFAULT NULL,
+            window_end DATETIME DEFAULT NULL,
+            pause_frequency INT NOT NULL,
+            navigation_count_video INT NOT NULL,
+            rewatch_segments INT NOT NULL,
+            playback_rate_change INT NOT NULL,
+            idle_duration_video INT NOT NULL,
+            time_on_content INT NOT NULL,
+            paas_rating INT NOT NULL,
+            cognitive_load INT NOT NULL,
+            cognitive_load_label VARCHAR(20) NOT NULL,
+            feature_created_at TIMESTAMP NULL,
+            rating_created_at TIMESTAMP NULL,
+            dataset_created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY (id),
+            INDEX idx_model_dataset_participant_session (participant_id, session_id),
+            INDEX idx_model_dataset_lesson_window (lesson_id, minute_index),
+            INDEX idx_model_dataset_created (dataset_created_at)
+        )
+    """
+    insert_query = """
+        INSERT INTO model_experiment_dataset (
+            participant_id,
+            lesson_id,
+            session_id,
+            minute_index,
+            window_start,
+            window_end,
+            pause_frequency,
+            navigation_count_video,
+            rewatch_segments,
+            playback_rate_change,
+            idle_duration_video,
+            time_on_content,
+            paas_rating,
+            cognitive_load,
+            cognitive_load_label,
+            feature_created_at,
+            rating_created_at
+        )
+        SELECT
+            fw.student_id AS participant_id,
+            fw.lesson_id,
+            fw.session_id,
+            fw.minute_index,
+            fw.window_start,
+            fw.window_end,
+            fw.pause_frequency,
+            fw.navigation_count_video,
+            fw.rewatch_segments,
+            fw.playback_rate_change,
+            fw.idle_duration_video,
+            fw.time_on_content,
+            pr.paas_rating,
+            pr.cognitive_load,
+            pr.cognitive_load_label,
+            fw.created_at AS feature_created_at,
+            pr.created_at AS rating_created_at
+        FROM feature_windows fw
+        INNER JOIN paas_ratings pr
+            ON fw.student_id = pr.student_id
+            AND fw.lesson_id = pr.lesson_id
+            AND (
+                fw.session_id = pr.session_id
+                OR (fw.session_id IS NULL AND pr.session_id IS NULL)
+            )
+            AND fw.minute_index = pr.minute_index
+        WHERE fw.student_id = %s
+            AND fw.lesson_id = %s
+            AND (
+                fw.session_id = %s
+                OR (fw.session_id IS NULL AND %s IS NULL)
+            )
+            AND fw.minute_index = %s
+            AND NOT EXISTS (
+                SELECT 1
+                FROM model_experiment_dataset med
+                WHERE med.participant_id = fw.student_id
+                    AND med.lesson_id = fw.lesson_id
+                    AND (
+                        med.session_id = fw.session_id
+                        OR (med.session_id IS NULL AND fw.session_id IS NULL)
+                    )
+                    AND med.minute_index = fw.minute_index
+            )
+        ORDER BY fw.created_at DESC, pr.created_at DESC
+        LIMIT 1
+    """
+    values = (
+        window_data["student_id"],
+        window_data["lesson_id"],
+        window_data.get("session_id"),
+        window_data.get("session_id"),
+        window_data["minute_index"],
+    )
+    return _execute_insert_select(create_query, insert_query, values)
+
+
 def get_raw_events_for_window(
     student_id: str,
     lesson_id: str,
@@ -370,6 +476,30 @@ def _execute_transaction(queries: list[str]):
         return affected_rows
     except Exception as exc:
         print(f"MySQL transaction failed: {exc}")
+        connection.rollback()
+        return None
+    finally:
+        if cursor is not None:
+            cursor.close()
+        connection.close()
+
+
+def _execute_insert_select(create_query: str, insert_query: str, values: tuple):
+    connection = get_db_connection()
+
+    if connection is None:
+        return None
+
+    cursor = None
+
+    try:
+        cursor = connection.cursor()
+        cursor.execute(create_query)
+        cursor.execute(insert_query, values)
+        connection.commit()
+        return cursor.rowcount
+    except Exception as exc:
+        print(f"MySQL model dataset insert failed: {exc}")
         connection.rollback()
         return None
     finally:

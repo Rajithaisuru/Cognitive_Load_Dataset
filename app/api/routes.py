@@ -21,6 +21,7 @@ from app.services.db_service import (
     get_joined_dataset_rows,
     participant_code_exists,
     save_feature_window,
+    save_model_experiment_dataset_row,
     save_paas_rating,
     save_participant_session,
     save_raw_interaction_event,
@@ -131,11 +132,14 @@ def create_feature_window(data: FeatureWindowInput):
     feature_window_data = data.model_dump()
     feature_window_id = save_feature_window(feature_window_data)
     saved_to_csv = save_feature_window_backup(feature_window_data, mysql_id=feature_window_id)
+    model_dataset_rows = save_model_experiment_dataset_row(feature_window_data)
 
     return {
         "message": "Feature window processed",
         "saved_to_mysql": feature_window_id is not None,
         "saved_to_csv": saved_to_csv,
+        "model_dataset_saved_to_mysql": model_dataset_rows is not None,
+        "model_dataset_rows_inserted": model_dataset_rows or 0,
         "id": feature_window_id,
     }
 
@@ -145,11 +149,14 @@ def create_paas_rating(data: PaasRatingInput):
     rating_data = data.model_dump()
     result = save_paas_rating(rating_data)
     saved_to_csv = save_paas_rating_backup({**rating_data, **result}, mysql_id=result["id"])
+    model_dataset_rows = save_model_experiment_dataset_row(rating_data)
 
     return {
         "message": "Paas rating saved",
         "saved_to_mysql": result["id"] is not None,
         "saved_to_csv": saved_to_csv,
+        "model_dataset_saved_to_mysql": model_dataset_rows is not None,
+        "model_dataset_rows_inserted": model_dataset_rows or 0,
         **result,
     }
 
