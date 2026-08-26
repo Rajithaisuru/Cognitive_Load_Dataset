@@ -63,16 +63,16 @@ def create_participant(data: ParticipantCreateInput):
         session_id = save_participant_session(session_data)
         saved_to_csv = save_participant_session_backup(session_data, mysql_id=session_id)
 
-        if session_id is not None:
+        if session_id is not None or saved_to_csv:
             return {
                 "student_id": student_id,
                 "session_id": session_data["session_id"],
                 "lesson_id": data.lesson_id,
-                "saved_to_mysql": True,
+                "saved_to_mysql": session_id is not None,
                 "saved_to_csv": saved_to_csv,
             }
 
-    raise HTTPException(status_code=503, detail="Could not create a unique participant code")
+    raise HTTPException(status_code=503, detail="Could not save participant code to MySQL or CSV")
 
 
 @router.post("/predict")

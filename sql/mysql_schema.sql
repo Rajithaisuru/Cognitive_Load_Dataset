@@ -88,3 +88,35 @@ CREATE TABLE IF NOT EXISTS paas_ratings (
     CONSTRAINT chk_paas_rating_range CHECK (paas_rating BETWEEN 1 AND 9),
     CONSTRAINT chk_paas_cognitive_load_range CHECK (cognitive_load BETWEEN 1 AND 5)
 );
+
+CREATE TABLE IF NOT EXISTS model_experiment_dataset (
+    id BIGINT NOT NULL AUTO_INCREMENT,
+    participant_id VARCHAR(50) NOT NULL,
+    lesson_id VARCHAR(50) NOT NULL,
+    session_id VARCHAR(100) DEFAULT NULL,
+    minute_index INT NOT NULL,
+    window_start DATETIME DEFAULT NULL,
+    window_end DATETIME DEFAULT NULL,
+    pause_frequency INT NOT NULL,
+    navigation_count_video INT NOT NULL,
+    rewatch_segments INT NOT NULL,
+    playback_rate_change INT NOT NULL,
+    idle_duration_video INT NOT NULL,
+    time_on_content INT NOT NULL,
+    paas_rating INT NOT NULL,
+    cognitive_load INT NOT NULL,
+    cognitive_load_label VARCHAR(20) NOT NULL,
+    feature_created_at TIMESTAMP NULL,
+    rating_created_at TIMESTAMP NULL,
+    dataset_created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (id),
+    UNIQUE KEY uq_model_dataset_window (
+        participant_id,
+        lesson_id,
+        session_id,
+        minute_index
+    ),
+    INDEX idx_model_dataset_participant_session (participant_id, session_id),
+    INDEX idx_model_dataset_lesson_window (lesson_id, minute_index),
+    INDEX idx_model_dataset_created (dataset_created_at)
+);
