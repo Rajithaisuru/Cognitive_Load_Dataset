@@ -14,13 +14,15 @@ def save_participant_session(session_data: dict):
         INSERT INTO participant_sessions (
             student_id,
             lesson_id,
-            session_id
-        ) VALUES (%s, %s, %s)
+            session_id,
+            session_start_time
+        ) VALUES (%s, %s, %s, %s)
     """
     values = (
         session_data["student_id"],
         session_data["lesson_id"],
         session_data["session_id"],
+        _to_mysql_datetime(session_data.get("session_start_time")),
     )
     return _execute_insert(query, values)
 

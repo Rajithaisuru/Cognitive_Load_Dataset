@@ -1,6 +1,7 @@
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import StreamingResponse
 import csv
+from datetime import datetime, timezone
 from io import StringIO
 import secrets
 import string
@@ -60,6 +61,7 @@ def create_participant(data: ParticipantCreateInput):
             "student_id": student_id,
             "lesson_id": data.lesson_id,
             "session_id": f"{student_id}-{int(time.time() * 1000)}",
+            "session_start_time": datetime.now(timezone.utc),
         }
         session_id = save_participant_session(session_data)
         saved_to_csv = save_participant_session_backup(session_data, mysql_id=session_id)

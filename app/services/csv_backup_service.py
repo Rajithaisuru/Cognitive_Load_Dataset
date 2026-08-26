@@ -79,6 +79,7 @@ PARTICIPANT_SESSION_FIELDS = [
     "student_id",
     "lesson_id",
     "session_id",
+    "session_start_time",
     "created_at",
 ]
 

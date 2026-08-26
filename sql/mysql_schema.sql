@@ -6,6 +6,7 @@ CREATE TABLE IF NOT EXISTS participant_sessions (
     student_id VARCHAR(50) NOT NULL,
     lesson_id VARCHAR(50) NOT NULL,
     session_id VARCHAR(100) NOT NULL,
+    session_start_time DATETIME DEFAULT NULL,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (id),
     UNIQUE KEY uq_participant_student_id (student_id),
