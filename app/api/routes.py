@@ -6,8 +6,14 @@ from io import StringIO
 import secrets
 import string
 import time
+from uuid import uuid4
 
 from app.schemas.event import RawInteractionEventInput
+from app.schemas.evaluation import (
+    EvaluationPredictionInput,
+    EvaluationRatingInput,
+    EvaluationSessionInput,
+)
 from app.schemas.feature_window import FeatureWindowInput
 from app.schemas.paas import PaasRatingInput
 from app.schemas.participant import ParticipantCreateInput
@@ -26,6 +32,18 @@ from app.services.db_service import (
     save_paas_rating,
     save_participant_session,
     save_raw_interaction_event,
+)
+from app.services.evaluation_db_service import (
+    evaluation_participant_exists,
+    get_evaluation_records,
+    save_evaluation_prediction,
+    save_evaluation_session,
+    submit_evaluation_rating,
+)
+from app.services.evaluation_service import (
+    get_comparison_model_label,
+    get_self_report_label,
+    predict_evaluation_segment,
 )
 from app.services.raw_feature_service import extract_feature_window_from_raw
 
@@ -76,6 +94,101 @@ def create_participant(data: ParticipantCreateInput):
             }
 
     raise HTTPException(status_code=503, detail="Could not save participant code to MySQL or CSV")
+
+
+@router.post("/evaluation/sessions")
+def create_evaluation_session(data: EvaluationSessionInput):
+    alphabet = string.ascii_uppercase + string.digits
+
+    for _ in range(20):
+        participant_id = "E" + "".join(secrets.choice(alphabet) for _ in range(5))
+        if evaluation_participant_exists(participant_id):
+            continue
+
+        session_data = {
+            "participant_id": participant_id,
+            "session_id": f"{participant_id}-{int(time.time() * 1000)}",
+            "video_id": data.video_id,
+            "consented_at": datetime.now(timezone.utc),
+        }
+        session_row_id = save_evaluation_session(session_data)
+        if session_row_id is not None:
+            return {
+                "participant_id": participant_id,
+                "session_id": session_data["session_id"],
+                "video_id": data.video_id,
+            }
+
+    raise HTTPException(status_code=503, detail="Could not create an evaluation session")
+
+
+@router.post("/evaluation/segments/predict")
+def create_evaluation_prediction(data: EvaluationPredictionInput):
+    if data.segment_end_time <= data.segment_start_time:
+        raise HTTPException(status_code=422, detail="Segment end time must follow start time")
+
+    features = {
+        "pause_frequency": data.pause_frequency,
+        "navigation_count_video": data.navigation_count_video,
+        "rewatch_segments": data.rewatch_segments,
+        "playback_rate_change": data.playback_rate_change,
+        "idle_duration_video": data.idle_duration_video,
+        "time_on_content": data.time_on_content,
+    }
+    try:
+        prediction = predict_evaluation_segment(features)
+    except (FileNotFoundError, ValueError) as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail="Model inference failed") from exc
+
+    record = {
+        **data.model_dump(),
+        **prediction,
+        "evaluation_id": str(uuid4()),
+        "prediction_at": datetime.now(timezone.utc),
+    }
+    saved = save_evaluation_prediction(record)
+    if saved is None:
+        raise HTTPException(status_code=503, detail="Could not save the evaluation prediction")
+    if saved.get("invalid_session"):
+        raise HTTPException(status_code=404, detail="Evaluation session not found")
+
+    # Prediction values intentionally remain server-side until rating submission.
+    return {
+        "evaluation_id": saved["evaluation_id"],
+        "status": "already_submitted" if saved["already_submitted"] else "awaiting_rating",
+        "prediction_saved": True,
+        "already_exists": saved["already_exists"],
+    }
+
+
+@router.post("/evaluation/segments/rating")
+def submit_evaluation_segment_rating(data: EvaluationRatingInput):
+    rating_data = {
+        **data.model_dump(),
+        "participant_rating_label": get_self_report_label(data.participant_rating),
+        "comparison_model_label": get_comparison_model_label(data.participant_rating),
+        "submitted_at": datetime.now(timezone.utc),
+    }
+    result = submit_evaluation_rating(rating_data)
+    if result is None:
+        raise HTTPException(status_code=503, detail="Could not save the evaluation rating")
+    if result["status"] == "not_found":
+        raise HTTPException(status_code=404, detail="Evaluation segment not found")
+
+    record = result["record"]
+    return {
+        "status": result["status"],
+        "duplicate_submission": result["status"] == "already_submitted",
+        "participant_rating": record["participant_rating"],
+        "participant_rating_label": record["participant_rating_label"],
+        "model_prediction_value": record["model_prediction_value"],
+        "model_prediction_label": record["model_prediction_label"],
+        "model_confidence": float(record["model_confidence"]),
+        "agreement": bool(record["agreement"]),
+        "mapping_version": record["mapping_version"],
+    }
 
 
 @router.post("/predict")
@@ -195,6 +308,47 @@ def export_dataset():
         iter([output.getvalue()]),
         media_type="text/csv",
         headers={"Content-Disposition": "attachment; filename=cognitive_load_dataset.csv"},
+    )
+
+
+@router.get("/evaluation/export")
+def export_evaluation_dataset():
+    rows = get_evaluation_records()
+    output = StringIO()
+    fieldnames = [
+        "participant_id",
+        "session_id",
+        "video_id",
+        "segment_index",
+        "segment_start_time",
+        "segment_end_time",
+        "pause_frequency",
+        "navigation_count_video",
+        "rewatch_segments",
+        "playback_rate_change",
+        "idle_duration_video",
+        "time_on_content",
+        "model_prediction_value",
+        "model_prediction_label",
+        "model_confidence",
+        "participant_rating",
+        "participant_rating_label",
+        "agreement",
+        "prediction_at",
+        "submitted_at",
+        "model_version",
+        "model_file_hash",
+        "mapping_version",
+    ]
+    writer = csv.DictWriter(output, fieldnames=fieldnames)
+    writer.writeheader()
+    writer.writerows(rows)
+    output.seek(0)
+
+    return StreamingResponse(
+        iter([output.getvalue()]),
+        media_type="text/csv",
+        headers={"Content-Disposition": "attachment; filename=model_evaluation_records.csv"},
     )
 
 

@@ -96,6 +96,29 @@
             font-size: 15px;
         }
 
+        .site-nav {
+            display: flex;
+            gap: 4px;
+            padding: 4px;
+            border: 1px solid var(--line);
+            border-radius: 8px;
+            background: var(--panel);
+        }
+
+        .site-nav a {
+            padding: 8px 12px;
+            border-radius: 6px;
+            color: var(--muted);
+            font-size: 14px;
+            font-weight: bold;
+            text-decoration: none;
+        }
+
+        .site-nav a[aria-current="page"] {
+            background: #e0f2fe;
+            color: #075985;
+        }
+
         .consent-card, .setup, .status, .paas-panel, .video-panel {
             border: 1px solid var(--line);
             border-radius: 12px;
@@ -405,7 +428,10 @@
                 <h2>Video-Based Cognitive Load Data Collection</h2>
                 <p class="subtitle">Watch the assigned lesson video and submit the segment rating when prompted.</p>
             </div>
-            <span class="badge">Research Session</span>
+            <nav class="site-nav" aria-label="Research pages">
+                <a href="data_collection.html" aria-current="page">Data Collection</a>
+                <a href="model_evaluation.html">Model Evaluation</a>
+            </nav>
         </header>
 
         <section class="consent-card" id="consentPanel">

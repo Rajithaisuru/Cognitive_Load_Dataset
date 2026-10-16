@@ -1,0 +1,769 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cognitive Load Model Evaluation</title>
+    <style>
+        :root {
+            --bg: #f4f7fb;
+            --panel: #ffffff;
+            --ink: #172033;
+            --muted: #697386;
+            --line: #d8e0eb;
+            --accent: #2563eb;
+            --accent-dark: #1d4ed8;
+            --teal: #0f766e;
+            --success: #047857;
+            --success-bg: #ecfdf5;
+            --warning: #9a3412;
+            --warning-bg: #fff7ed;
+            --warning-line: #fdba74;
+            --danger: #b91c1c;
+            --shadow: 0 18px 45px rgba(23, 32, 51, 0.1);
+        }
+
+        * { box-sizing: border-box; }
+
+        body {
+            margin: 0;
+            color: var(--ink);
+            background: var(--bg);
+            font-family: Arial, sans-serif;
+        }
+
+        main {
+            width: min(1180px, calc(100% - 32px));
+            margin: 24px auto;
+        }
+
+        h1, h2, h3, p { margin-top: 0; }
+
+        button, input, select {
+            min-height: 44px;
+            padding: 10px 12px;
+            border: 1px solid var(--line);
+            border-radius: 8px;
+            background: #fff;
+            color: var(--ink);
+            font: inherit;
+        }
+
+        button { cursor: pointer; font-weight: bold; }
+        button:disabled { cursor: not-allowed; opacity: 0.55; }
+
+        label {
+            display: block;
+            margin-bottom: 6px;
+            font-weight: bold;
+        }
+
+        input { width: 210px; text-transform: uppercase; }
+        select { min-width: 270px; }
+
+        video {
+            display: block;
+            width: 100%;
+            aspect-ratio: 16 / 9;
+            border-radius: 8px;
+            background: #000;
+        }
+
+        .page-header {
+            display: flex;
+            align-items: end;
+            justify-content: space-between;
+            gap: 16px;
+            margin-bottom: 18px;
+        }
+
+        .page-header h1 { margin-bottom: 6px; font-size: 28px; }
+        .subtitle { margin-bottom: 0; color: var(--muted); font-size: 15px; }
+
+        .site-nav {
+            display: flex;
+            gap: 4px;
+            padding: 4px;
+            border: 1px solid var(--line);
+            border-radius: 8px;
+            background: var(--panel);
+        }
+
+        .site-nav a {
+            padding: 8px 12px;
+            border-radius: 6px;
+            color: var(--muted);
+            font-size: 14px;
+            font-weight: bold;
+            text-decoration: none;
+        }
+
+        .site-nav a[aria-current="page"] { background: #e0f2fe; color: #075985; }
+
+        .panel {
+            border: 1px solid var(--line);
+            border-radius: 8px;
+            background: var(--panel);
+            box-shadow: var(--shadow);
+        }
+
+        .consent-summary { padding: 14px 16px; margin-bottom: 16px; }
+        .consent-row, .setup-row, .participant-row, .actions {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .consent-row { justify-content: space-between; }
+        .consent-status { color: var(--muted); font-weight: bold; }
+        .setup { padding: 16px; margin-bottom: 16px; }
+        .setup-row { align-items: end; flex-wrap: wrap; }
+
+        .primary {
+            border-color: var(--accent);
+            background: var(--accent);
+            color: #fff;
+        }
+
+        .primary:hover:not(:disabled) { background: var(--accent-dark); }
+        .generate { border-color: var(--teal); background: var(--teal); color: #fff; }
+        .secondary { border-color: #bfdbfe; background: #eff6ff; color: #1d4ed8; }
+
+        .workspace {
+            display: grid;
+            grid-template-columns: 330px minmax(0, 1fr);
+            gap: 18px;
+            align-items: start;
+        }
+
+        .side-panel { position: sticky; top: 18px; display: grid; gap: 14px; }
+        .status, .rating-panel, .result-panel, .video-panel { padding: 18px; }
+
+        .metric { padding: 11px 0; border-bottom: 1px solid var(--line); }
+        .metric:last-child { border-bottom: 0; }
+        .metric-label {
+            display: block;
+            color: var(--muted);
+            font-size: 12px;
+            font-weight: bold;
+            text-transform: uppercase;
+        }
+        .metric-value { display: block; margin-top: 4px; overflow-wrap: anywhere; font-size: 15px; }
+
+        .rating-panel { border-color: var(--warning-line); background: var(--warning-bg); }
+        .rating-panel h2, .result-panel h2 { margin-bottom: 8px; font-size: 20px; }
+        .question { color: #3b4354; line-height: 1.45; }
+
+        .rating-options { display: grid; gap: 8px; margin: 14px 0; }
+        .rating-option {
+            display: flex;
+            align-items: center;
+            gap: 9px;
+            min-height: 42px;
+            padding: 8px 10px;
+            border: 1px solid #fed7aa;
+            border-radius: 6px;
+            background: #fff;
+            cursor: pointer;
+            font-weight: normal;
+        }
+        .rating-option:has(input:checked) { border-color: #ea580c; background: #ffedd5; }
+        .rating-option input { width: auto; min-height: auto; margin: 0; text-transform: none; }
+        .rating-panel .primary, .result-panel button { width: 100%; }
+
+        .result-panel { border-color: #6ee7b7; background: var(--success-bg); }
+        .result-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 14px 0; }
+        .result-item { padding: 10px; border: 1px solid #a7f3d0; border-radius: 6px; background: #fff; }
+        .result-item strong { display: block; margin-top: 4px; color: var(--success); }
+
+        .video-title { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
+        .video-title h2 { margin: 0; font-size: 18px; }
+        .badge { padding: 6px 10px; border-radius: 999px; background: #e0f2fe; color: #075985; font-size: 13px; font-weight: bold; }
+
+        .message { margin: 10px 0 0; color: var(--muted); font-size: 14px; line-height: 1.4; }
+        .message.error { color: var(--danger); }
+        .hidden { display: none !important; }
+
+        .modal-overlay {
+            position: fixed;
+            inset: 0;
+            z-index: 20;
+            display: grid;
+            place-items: center;
+            padding: 18px;
+            background: rgba(15, 23, 42, 0.55);
+        }
+
+        .modal-card {
+            width: min(680px, 100%);
+            max-height: calc(100vh - 36px);
+            overflow: auto;
+            padding: 22px;
+            border-radius: 10px;
+            background: #fff;
+            box-shadow: 0 28px 70px rgba(15, 23, 42, 0.28);
+        }
+
+        .modal-meta { display: grid; gap: 5px; margin: 12px 0; color: var(--muted); font-size: 14px; }
+        .modal-card p, .modal-card li { color: #3b4354; line-height: 1.5; }
+        .modal-card ul { padding-left: 20px; }
+        .consent-check { display: flex; align-items: flex-start; gap: 10px; padding-top: 8px; }
+        .consent-check input { width: auto; min-height: auto; margin-top: 3px; }
+        .consent-check label { margin: 0; line-height: 1.4; }
+        .modal-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 16px; }
+
+        @media (max-width: 900px) {
+            main { width: min(100% - 20px, 720px); margin: 14px auto; }
+            .page-header { align-items: stretch; flex-direction: column; }
+            .site-nav { width: 100%; }
+            .site-nav a { flex: 1; text-align: center; }
+            .workspace { grid-template-columns: 1fr; }
+            .side-panel { position: static; order: 2; }
+            .video-panel { order: 1; }
+            .setup-row, .participant-row, .consent-row, .modal-actions { align-items: stretch; flex-direction: column; }
+            .setup-row > div, input, select, .setup button, .consent-row button, .modal-actions button { width: 100%; min-width: 0; }
+        }
+    </style>
+</head>
+<body>
+    <main>
+        <header class="page-header">
+            <div>
+                <h1>Model Evaluation</h1>
+                <p class="subtitle">Compare your self-reported mental effort with the fixed model after each video segment.</p>
+            </div>
+            <nav class="site-nav" aria-label="Research pages">
+                <a href="data_collection.html">Data Collection</a>
+                <a href="model_evaluation.html" aria-current="page">Model Evaluation</a>
+            </nav>
+        </header>
+
+        <section class="panel consent-summary">
+            <div class="consent-row">
+                <span class="consent-status" id="consentStatus">Consent required before starting.</span>
+                <button class="secondary" id="viewConsentBtn" type="button">View Consent</button>
+            </div>
+        </section>
+
+        <section class="panel setup">
+            <div class="setup-row">
+                <div>
+                    <label for="participantCode">Anonymous participant code</label>
+                    <div class="participant-row">
+                        <input id="participantCode" placeholder="Click generate" readonly>
+                        <button class="generate" id="generateBtn" type="button" disabled>Generate Code</button>
+                    </div>
+                </div>
+                <div>
+                    <label for="videoId">Lesson video</label>
+                    <select id="videoId">
+                        <option value="L101" data-video-url="https://res.cloudinary.com/zg8dorc2/video/upload/v1786546595/Enterprise_Applications.mp4">L101 - Enterprise Applications</option>
+                        <option value="L102" data-video-url="https://res.cloudinary.com/zg8dorc2/video/upload/v1786546159/event_driven_microservice.mp4">L102 - Event Driven Microservice</option>
+                    </select>
+                </div>
+                <button class="primary" id="startBtn" type="button" disabled>Start Evaluation</button>
+            </div>
+        </section>
+
+        <div class="workspace">
+            <aside class="side-panel">
+                <section class="panel status">
+                    <div class="metric">
+                        <span class="metric-label">Session</span>
+                        <span class="metric-value" id="sessionStatus">Not started</span>
+                    </div>
+                    <div class="metric">
+                        <span class="metric-label">Current segment</span>
+                        <span class="metric-value" id="segmentStatus">-</span>
+                    </div>
+                    <div class="metric">
+                        <span class="metric-label">Status</span>
+                        <span class="metric-value" id="eventStatus">Waiting for consent.</span>
+                    </div>
+                    <button class="secondary hidden" id="retryPredictionBtn" type="button">Retry Prediction</button>
+                </section>
+
+                <section class="panel rating-panel hidden" id="ratingPanel">
+                    <h2>Self-reported mental effort</h2>
+                    <p class="question">How much mental effort did you put into understanding the video segment you just watched?</p>
+                    <div class="rating-options" role="radiogroup" aria-label="Mental effort rating">
+                        <label class="rating-option"><input type="radio" name="effort" value="1">1 - Very low</label>
+                        <label class="rating-option"><input type="radio" name="effort" value="2">2 - Low</label>
+                        <label class="rating-option"><input type="radio" name="effort" value="3">3 - Moderate</label>
+                        <label class="rating-option"><input type="radio" name="effort" value="4">4 - High</label>
+                        <label class="rating-option"><input type="radio" name="effort" value="5">5 - Very high</label>
+                    </div>
+                    <button class="primary" id="submitRatingBtn" type="button" disabled>Submit Rating</button>
+                    <p class="message" id="ratingMessage">Select one option to continue.</p>
+                </section>
+
+                <section class="panel result-panel hidden" id="resultPanel" aria-live="polite">
+                    <h2>Segment result</h2>
+                    <div class="result-grid">
+                        <div class="result-item">Your rating<strong id="participantResult">-</strong></div>
+                        <div class="result-item">Model prediction<strong id="modelResult">-</strong></div>
+                    </div>
+                    <p class="message" id="agreementResult"></p>
+                    <button class="primary" id="continueBtn" type="button">Continue</button>
+                </section>
+            </aside>
+
+            <section class="panel video-panel">
+                <div class="video-title">
+                    <h2>Evaluation Video</h2>
+                    <span class="badge" id="videoBadge">L101</span>
+                </div>
+                <video id="learningVideo" controls disabled>Your browser does not support the video tag.</video>
+            </section>
+        </div>
+    </main>
+
+    <div class="modal-overlay hidden" id="consentModal" role="dialog" aria-modal="true" aria-labelledby="consentTitle">
+        <div class="modal-card">
+            <h2 id="consentTitle">Model Evaluation Consent</h2>
+            <div class="modal-meta">
+                <span><strong>Project:</strong> Cognitive Load Prediction System for Online Learning Using Behavioral Patterns</span>
+                <span><strong>Group ID:</strong> R26-SE-004</span>
+                <span><strong>Researcher:</strong> Subasinghe M.H.R.I. - IT22089786</span>
+                <span><strong>Institution:</strong> Sri Lanka Institute of Information Technology</span>
+                <span><strong>Date:</strong> <span id="consentDate"></span></span>
+            </div>
+            <p>You will watch an educational video while anonymous interaction features are used by a fixed cognitive-load model. After each segment, you will give a five-point self-reported mental-effort rating.</p>
+            <ul>
+                <li>The model prediction is calculated and saved before your rating, but it remains hidden until your rating is submitted.</li>
+                <li>Your rating is not used as an input to the prediction and does not update or retrain the model.</li>
+                <li>The system stores an anonymous participant/session ID, video and segment IDs, interaction features, prediction, rating, timestamps, and model version/hash.</li>
+                <li>No name, password, or personal identifying information is collected.</li>
+            </ul>
+            <div class="consent-check">
+                <input id="consentAgree" type="checkbox">
+                <label for="consentAgree">I understand the evaluation activity and agree that my anonymous interaction data, model result, and self-reported rating may be used for academic research.</label>
+            </div>
+            <div class="modal-actions">
+                <button class="primary" id="agreeBtn" type="button">Agree</button>
+                <button id="closeConsentBtn" type="button">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const isLocalFrontend = window.location.protocol === "file:"
+            || (["127.0.0.1", "localhost"].includes(window.location.hostname)
+                && window.location.port !== "8000");
+        const API_BASE_URL = isLocalFrontend ? "http://127.0.0.1:8000" : "/api";
+        const SEGMENT_SECONDS = 120;
+        const IDLE_THRESHOLD_MS = 30000;
+
+        const video = document.getElementById("learningVideo");
+        const consentModal = document.getElementById("consentModal");
+        const consentAgree = document.getElementById("consentAgree");
+        const consentStatus = document.getElementById("consentStatus");
+        const participantCode = document.getElementById("participantCode");
+        const videoIdSelect = document.getElementById("videoId");
+        const generateBtn = document.getElementById("generateBtn");
+        const startBtn = document.getElementById("startBtn");
+        const sessionStatus = document.getElementById("sessionStatus");
+        const segmentStatus = document.getElementById("segmentStatus");
+        const eventStatus = document.getElementById("eventStatus");
+        const videoBadge = document.getElementById("videoBadge");
+        const retryPredictionBtn = document.getElementById("retryPredictionBtn");
+        const ratingPanel = document.getElementById("ratingPanel");
+        const submitRatingBtn = document.getElementById("submitRatingBtn");
+        const ratingMessage = document.getElementById("ratingMessage");
+        const resultPanel = document.getElementById("resultPanel");
+
+        let participantId = "";
+        let sessionId = "";
+        let videoId = "L101";
+        let segmentIndex = 1;
+        let segmentStart = null;
+        let pendingSegmentPayload = null;
+        let evaluationId = "";
+        let segmentTimer = null;
+        let idleTimer = null;
+        let pauseTimer = null;
+        let seekEndTimer = null;
+        let segmentActive = false;
+        let segmentEnding = false;
+        let submittingRating = false;
+        let suppressPause = false;
+        let isSeeking = false;
+        let pointerDownTime = null;
+        let pendingSeekFrom = null;
+        let pendingSeekTo = null;
+        let lastStableTime = 0;
+        let lastVideoTime = 0;
+        let lastNavigationAt = 0;
+        let lastInteractionAt = Date.now();
+        let idleActive = false;
+        let idleStartedAt = null;
+        let pauseFrequency = 0;
+        let navigationCount = 0;
+        let rewatchSegments = 0;
+        let playbackRateChanges = 0;
+        let lastPlaybackRate = 1;
+        let idleDuration = 0;
+
+        document.getElementById("consentDate").textContent = new Date().toLocaleDateString();
+        loadSelectedVideo();
+        consentModal.classList.remove("hidden");
+
+        document.getElementById("viewConsentBtn").addEventListener("click", () => consentModal.classList.remove("hidden"));
+        document.getElementById("closeConsentBtn").addEventListener("click", () => consentModal.classList.add("hidden"));
+        document.getElementById("agreeBtn").addEventListener("click", () => {
+            consentAgree.checked = true;
+            consentAgree.dispatchEvent(new Event("change"));
+            consentModal.classList.add("hidden");
+        });
+
+        consentAgree.addEventListener("change", () => {
+            consentStatus.textContent = consentAgree.checked ? "Consent confirmed." : "Consent required before starting.";
+            generateBtn.disabled = !consentAgree.checked || Boolean(participantId);
+            startBtn.disabled = !consentAgree.checked;
+            eventStatus.textContent = consentAgree.checked ? "Generate an anonymous participant code." : "Waiting for consent.";
+        });
+
+        videoIdSelect.addEventListener("change", () => {
+            loadSelectedVideo();
+            if (participantId || sessionId) {
+                participantId = "";
+                sessionId = "";
+                participantCode.value = "";
+                sessionStatus.textContent = "Not started";
+                generateBtn.disabled = !consentAgree.checked;
+                eventStatus.textContent = "Video changed. Generate a new participant code.";
+            }
+        });
+
+        generateBtn.addEventListener("click", createSession);
+        startBtn.addEventListener("click", startSession);
+        retryPredictionBtn.addEventListener("click", createHiddenPrediction);
+        document.querySelectorAll('input[name="effort"]').forEach((input) => {
+            input.addEventListener("change", () => {
+                submitRatingBtn.disabled = false;
+                ratingMessage.textContent = "Your selection is ready to submit.";
+            });
+        });
+        submitRatingBtn.addEventListener("click", submitRating);
+        document.getElementById("continueBtn").addEventListener("click", continueEvaluation);
+
+        async function createSession() {
+            if (!consentAgree.checked) return;
+            videoId = videoIdSelect.value;
+            generateBtn.disabled = true;
+            eventStatus.textContent = "Creating evaluation session...";
+            try {
+                const result = await postJson("/evaluation/sessions", { video_id: videoId });
+                participantId = result.participant_id;
+                sessionId = result.session_id;
+                participantCode.value = participantId;
+                sessionStatus.textContent = sessionId;
+                eventStatus.textContent = "Code generated. Start when ready.";
+            } catch (error) {
+                generateBtn.disabled = false;
+                eventStatus.textContent = `Could not create session: ${error.message}`;
+            }
+        }
+
+        async function startSession() {
+            if (!participantId || !sessionId) await createSession();
+            if (!participantId || !sessionId) return;
+            videoId = videoIdSelect.value;
+            participantCode.disabled = true;
+            videoIdSelect.disabled = true;
+            consentAgree.disabled = true;
+            generateBtn.disabled = true;
+            startBtn.disabled = true;
+            video.disabled = false;
+            segmentStatus.textContent = `Segment ${segmentIndex} - waiting for play`;
+            eventStatus.textContent = "Press play when ready.";
+        }
+
+        function loadSelectedVideo() {
+            const option = videoIdSelect.options[videoIdSelect.selectedIndex];
+            video.src = option.dataset.videoUrl;
+            video.load();
+            videoBadge.textContent = option.value;
+        }
+
+        video.addEventListener("play", () => {
+            if (!segmentActive && !segmentEnding && sessionId) startSegment();
+            markInteraction();
+        });
+
+        video.addEventListener("pause", () => {
+            markInteraction();
+            if (!segmentActive || suppressPause || isSeeking || seekEndTimer) {
+                suppressPause = false;
+                return;
+            }
+            clearTimeout(pauseTimer);
+            pauseTimer = setTimeout(() => {
+                pauseTimer = null;
+                if (!isSeeking && !seekEndTimer && segmentActive) {
+                    pauseFrequency++;
+                    eventStatus.textContent = `Pause count: ${pauseFrequency}`;
+                }
+            }, 350);
+        });
+
+        ["pointerdown", "mousedown", "touchstart"].forEach((name) => video.addEventListener(name, () => {
+            pointerDownTime = lastStableTime || video.currentTime;
+        }));
+
+        ["pointerup", "mouseup", "touchend", "click"].forEach((name) => video.addEventListener(name, () => {
+            const from = pointerDownTime;
+            setTimeout(() => countNavigation(from, video.currentTime), 150);
+        }));
+
+        video.addEventListener("seeking", () => {
+            clearTimeout(pauseTimer);
+            pauseTimer = null;
+            if (!isSeeking) pendingSeekFrom = pointerDownTime ?? lastStableTime ?? lastVideoTime;
+            isSeeking = true;
+            clearTimeout(seekEndTimer);
+            markInteraction();
+        });
+
+        video.addEventListener("seeked", () => {
+            pendingSeekTo = video.currentTime;
+            lastVideoTime = pendingSeekTo;
+            markInteraction();
+            clearTimeout(seekEndTimer);
+            seekEndTimer = setTimeout(finalizeSeek, 150);
+        });
+
+        video.addEventListener("ratechange", () => {
+            markInteraction();
+            if (!segmentActive || video.playbackRate === lastPlaybackRate) return;
+            lastPlaybackRate = video.playbackRate;
+            playbackRateChanges++;
+            eventStatus.textContent = `Playback rate changes: ${playbackRateChanges}`;
+        });
+
+        video.addEventListener("timeupdate", () => {
+            const current = video.currentTime;
+            const jump = Math.abs(current - lastVideoTime);
+            if (!isSeeking && !seekEndTimer && segmentActive && jump > 2) countNavigation(lastVideoTime, current);
+            lastVideoTime = current;
+            if (!isSeeking && !seekEndTimer) lastStableTime = current;
+        });
+
+        video.addEventListener("ended", () => {
+            if (segmentActive) endSegment();
+        });
+
+        ["mousemove", "keydown", "click", "touchstart"].forEach((name) => document.addEventListener(name, markInteraction));
+
+        function startSegment() {
+            resetCounters();
+            segmentStart = new Date();
+            segmentActive = true;
+            segmentEnding = false;
+            lastInteractionAt = Date.now();
+            segmentStatus.textContent = `Segment ${segmentIndex} - 2 minutes`;
+            eventStatus.textContent = "Evaluation segment in progress.";
+            clearTimeout(segmentTimer);
+            segmentTimer = setTimeout(endSegment, SEGMENT_SECONDS * 1000);
+            clearInterval(idleTimer);
+            idleTimer = setInterval(checkIdle, 1000);
+        }
+
+        async function endSegment() {
+            if (!segmentActive || segmentEnding) return;
+            segmentEnding = true;
+            segmentActive = false;
+            clearTimeout(segmentTimer);
+            clearInterval(idleTimer);
+            if (idleActive) {
+                idleActive = false;
+                addIdleDuration();
+            }
+            suppressPause = true;
+            video.pause();
+            const segmentEnd = new Date();
+            pendingSegmentPayload = {
+                participant_id: participantId,
+                session_id: sessionId,
+                video_id: videoId,
+                segment_index: segmentIndex,
+                segment_start_time: segmentStart.toISOString(),
+                segment_end_time: segmentEnd.toISOString(),
+                pause_frequency: pauseFrequency,
+                navigation_count_video: navigationCount,
+                rewatch_segments: rewatchSegments,
+                playback_rate_change: playbackRateChanges,
+                idle_duration_video: idleDuration,
+                time_on_content: Math.max(Math.round((segmentEnd - segmentStart) / 1000) - idleDuration, 0),
+            };
+            await createHiddenPrediction();
+        }
+
+        async function createHiddenPrediction() {
+            if (!pendingSegmentPayload) return;
+            ratingPanel.classList.add("hidden");
+            retryPredictionBtn.classList.add("hidden");
+            eventStatus.textContent = "Calculating and saving prediction...";
+            try {
+                const result = await postJson("/evaluation/segments/predict", pendingSegmentPayload);
+                evaluationId = result.evaluation_id;
+                if (result.status === "already_submitted") {
+                    eventStatus.textContent = "This segment was already submitted.";
+                    resultPanel.classList.remove("hidden");
+                    document.getElementById("participantResult").textContent = "Already saved";
+                    document.getElementById("modelResult").textContent = "Already saved";
+                    document.getElementById("agreementResult").textContent = "Continue to the next segment.";
+                    return;
+                }
+                eventStatus.textContent = "Prediction saved. Submit your rating to reveal it.";
+                clearRatingSelection();
+                ratingPanel.classList.remove("hidden");
+            } catch (error) {
+                eventStatus.textContent = `Prediction failed: ${error.message}`;
+                retryPredictionBtn.classList.remove("hidden");
+            }
+        }
+
+        async function submitRating() {
+            const selected = document.querySelector('input[name="effort"]:checked');
+            if (!selected || !evaluationId || submittingRating) return;
+            submittingRating = true;
+            submitRatingBtn.disabled = true;
+            document.querySelectorAll('input[name="effort"]').forEach((input) => input.disabled = true);
+            ratingMessage.classList.remove("error");
+            ratingMessage.textContent = "Saving your rating...";
+            try {
+                const result = await postJson("/evaluation/segments/rating", {
+                    evaluation_id: evaluationId,
+                    participant_id: participantId,
+                    session_id: sessionId,
+                    participant_rating: Number(selected.value),
+                });
+                ratingPanel.classList.add("hidden");
+                document.getElementById("participantResult").textContent = `${result.participant_rating} - ${result.participant_rating_label}`;
+                document.getElementById("modelResult").textContent = result.model_prediction_label;
+                document.getElementById("agreementResult").textContent = result.agreement
+                    ? "The rating and model label match for this segment."
+                    : "The rating and model label differ for this segment.";
+                resultPanel.classList.remove("hidden");
+                eventStatus.textContent = result.duplicate_submission
+                    ? "This rating was already saved; the stored result is shown."
+                    : "Rating saved. The model result is now visible.";
+            } catch (error) {
+                ratingMessage.classList.add("error");
+                ratingMessage.textContent = `Save failed: ${error.message}. Try again.`;
+                submitRatingBtn.disabled = false;
+                document.querySelectorAll('input[name="effort"]').forEach((input) => input.disabled = false);
+            } finally {
+                submittingRating = false;
+            }
+        }
+
+        async function continueEvaluation() {
+            resultPanel.classList.add("hidden");
+            segmentIndex++;
+            evaluationId = "";
+            pendingSegmentPayload = null;
+            segmentEnding = false;
+            if (video.ended) {
+                segmentStatus.textContent = "Evaluation complete";
+                eventStatus.textContent = "The video has ended. Thank you.";
+                return;
+            }
+            segmentStatus.textContent = `Segment ${segmentIndex} - starting`;
+            try {
+                await video.play();
+            } catch (error) {
+                eventStatus.textContent = "Press play to begin the next segment.";
+            }
+        }
+
+        function checkIdle() {
+            if (!segmentActive || idleActive) return;
+            if (Date.now() - lastInteractionAt >= IDLE_THRESHOLD_MS) {
+                idleActive = true;
+                idleStartedAt = new Date();
+                eventStatus.textContent = "Idle time started.";
+            }
+        }
+
+        function markInteraction() {
+            lastInteractionAt = Date.now();
+            if (idleActive && segmentActive) {
+                idleActive = false;
+                addIdleDuration();
+                eventStatus.textContent = "Idle time ended.";
+            }
+        }
+
+        function addIdleDuration() {
+            if (!idleStartedAt) return;
+            idleDuration += Math.max(Math.round((new Date() - idleStartedAt) / 1000), 0);
+            idleStartedAt = null;
+        }
+
+        function finalizeSeek() {
+            const from = pendingSeekFrom;
+            const to = pendingSeekTo ?? video.currentTime;
+            isSeeking = false;
+            seekEndTimer = null;
+            pendingSeekFrom = null;
+            pendingSeekTo = null;
+            pointerDownTime = null;
+            countNavigation(from, to);
+        }
+
+        function countNavigation(from, to) {
+            if (!segmentActive || from === null || from === undefined || Math.abs(to - from) < 1) return;
+            const now = Date.now();
+            if (now - lastNavigationAt < 800) return;
+            lastNavigationAt = now;
+            navigationCount++;
+            if (to < from) rewatchSegments++;
+            lastStableTime = to;
+            eventStatus.textContent = `Navigation count: ${navigationCount}`;
+        }
+
+        function resetCounters() {
+            pauseFrequency = 0;
+            navigationCount = 0;
+            rewatchSegments = 0;
+            playbackRateChanges = 0;
+            lastPlaybackRate = video.playbackRate;
+            idleDuration = 0;
+            idleActive = false;
+            idleStartedAt = null;
+            isSeeking = false;
+            pointerDownTime = null;
+            pendingSeekFrom = null;
+            pendingSeekTo = null;
+            lastStableTime = video.currentTime;
+            lastVideoTime = video.currentTime;
+            clearTimeout(pauseTimer);
+            clearTimeout(seekEndTimer);
+        }
+
+        function clearRatingSelection() {
+            document.querySelectorAll('input[name="effort"]').forEach((input) => {
+                input.checked = false;
+                input.disabled = false;
+            });
+            submitRatingBtn.disabled = true;
+            ratingMessage.classList.remove("error");
+            ratingMessage.textContent = "Select one option to continue.";
+        }
+
+        async function postJson(path, body) {
+            const response = await fetch(`${API_BASE_URL}${path}`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(body),
+            });
+            let payload = {};
+            try { payload = await response.json(); } catch (error) { payload = {}; }
+            if (!response.ok) throw new Error(payload.detail || "Request failed");
+            return payload;
+        }
+    </script>
+</body>
+</html>
