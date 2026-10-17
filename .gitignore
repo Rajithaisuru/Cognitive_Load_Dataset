@@ -16,6 +16,8 @@ htmlcov/
 
 # Local research data/backups should not be committed.
 data_backups/*.csv
+data_backups/*.lock
+data_backups/.*.lock
 !data_backups/.gitkeep
 
 # Model binaries can be large and are not needed for data-collection mode.

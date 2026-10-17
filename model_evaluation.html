@@ -476,7 +476,7 @@
                 sessionId = result.session_id;
                 participantCode.value = participantId;
                 sessionStatus.textContent = sessionId;
-                return true;
+                return result;
             } catch (error) {
                 generateBtn.disabled = false;
                 eventStatus.textContent = `Could not start evaluation: ${error.message}`;
@@ -486,7 +486,11 @@
 
         async function startSession() {
             if (!participantId) generateParticipantCode();
-            if (!sessionId && !(await createSession())) return;
+            let sessionResult = null;
+            if (!sessionId) {
+                sessionResult = await createSession();
+                if (!sessionResult) return;
+            }
             videoId = videoIdSelect.value;
             participantCode.disabled = true;
             videoIdSelect.disabled = true;
@@ -495,7 +499,9 @@
             startBtn.disabled = true;
             video.disabled = false;
             segmentStatus.textContent = `Segment ${segmentIndex} - waiting for play`;
-            eventStatus.textContent = "Press play when ready.";
+            eventStatus.textContent = sessionResult && !sessionResult.saved_to_mysql
+                ? "Press play when ready. Session is using CSV fallback storage."
+                : "Press play when ready.";
         }
 
         function loadSelectedVideo() {

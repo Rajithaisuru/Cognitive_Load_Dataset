@@ -313,7 +313,7 @@ def get_evaluation_records():
         cursor.execute(
             """
             SELECT
-                participant_id, session_id, video_id, segment_index,
+                evaluation_id, participant_id, session_id, video_id, segment_index,
                 segment_start_time, segment_end_time, pause_frequency,
                 navigation_count_video, rewatch_segments, playback_rate_change,
                 idle_duration_video, time_on_content, model_prediction_value,

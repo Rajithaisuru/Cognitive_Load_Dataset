@@ -40,6 +40,13 @@ from app.services.evaluation_db_service import (
     save_evaluation_session,
     submit_evaluation_rating,
 )
+from app.services.evaluation_csv_service import (
+    evaluation_backup_participant_exists,
+    get_evaluation_backup_records,
+    save_evaluation_prediction_backup,
+    save_evaluation_session_backup,
+    submit_evaluation_rating_backup,
+)
 from app.services.evaluation_service import (
     get_comparison_model_label,
     get_self_report_label,
@@ -104,7 +111,9 @@ def create_evaluation_session(data: EvaluationSessionInput):
         participant_id = data.participant_id or (
             "E" + "".join(secrets.choice(alphabet) for _ in range(5))
         )
-        if evaluation_participant_exists(participant_id):
+        if evaluation_participant_exists(participant_id) or evaluation_backup_participant_exists(
+            participant_id
+        ):
             if data.participant_id:
                 raise HTTPException(
                     status_code=409,
@@ -119,17 +128,23 @@ def create_evaluation_session(data: EvaluationSessionInput):
             "consented_at": datetime.now(timezone.utc),
         }
         session_row_id = save_evaluation_session(session_data)
-        if session_row_id is not None:
+        saved_to_csv = save_evaluation_session_backup(session_data)
+        if session_row_id is not None or saved_to_csv:
             return {
                 "participant_id": participant_id,
                 "session_id": session_data["session_id"],
                 "video_id": data.video_id,
+                "saved_to_mysql": session_row_id is not None,
+                "saved_to_csv": saved_to_csv,
             }
 
         if data.participant_id:
             break
 
-    raise HTTPException(status_code=503, detail="Could not create an evaluation session")
+    raise HTTPException(
+        status_code=503,
+        detail="Could not save the evaluation session to MySQL or CSV",
+    )
 
 
 @router.post("/evaluation/segments/predict")
@@ -158,7 +173,15 @@ def create_evaluation_prediction(data: EvaluationPredictionInput):
         "evaluation_id": str(uuid4()),
         "prediction_at": datetime.now(timezone.utc),
     }
-    saved = save_evaluation_prediction(record)
+    saved_to_mysql = save_evaluation_prediction(record)
+    if saved_to_mysql and not saved_to_mysql.get("invalid_session"):
+        record["evaluation_id"] = saved_to_mysql["evaluation_id"]
+    saved_to_csv = save_evaluation_prediction_backup(record)
+    saved = (
+        saved_to_mysql
+        if saved_to_mysql and not saved_to_mysql.get("invalid_session")
+        else saved_to_csv
+    )
     if saved is None:
         raise HTTPException(status_code=503, detail="Could not save the evaluation prediction")
     if saved.get("invalid_session"):
@@ -170,6 +193,10 @@ def create_evaluation_prediction(data: EvaluationPredictionInput):
         "status": "already_submitted" if saved["already_submitted"] else "awaiting_rating",
         "prediction_saved": True,
         "already_exists": saved["already_exists"],
+        "saved_to_mysql": bool(
+            saved_to_mysql and not saved_to_mysql.get("invalid_session")
+        ),
+        "saved_to_csv": bool(saved_to_csv and not saved_to_csv.get("invalid_session")),
     }
 
 
@@ -181,7 +208,13 @@ def submit_evaluation_segment_rating(data: EvaluationRatingInput):
         "comparison_model_label": get_comparison_model_label(data.participant_rating),
         "submitted_at": datetime.now(timezone.utc),
     }
-    result = submit_evaluation_rating(rating_data)
+    mysql_result = submit_evaluation_rating(rating_data)
+    csv_result = submit_evaluation_rating_backup(rating_data)
+    result = (
+        mysql_result
+        if mysql_result and mysql_result.get("status") != "not_found"
+        else csv_result
+    )
     if result is None:
         raise HTTPException(status_code=503, detail="Could not save the evaluation rating")
     if result["status"] == "not_found":
@@ -198,6 +231,10 @@ def submit_evaluation_segment_rating(data: EvaluationRatingInput):
         "model_confidence": float(record["model_confidence"]),
         "agreement": bool(record["agreement"]),
         "mapping_version": record["mapping_version"],
+        "saved_to_mysql": bool(
+            mysql_result and mysql_result.get("status") != "not_found"
+        ),
+        "saved_to_csv": bool(csv_result and csv_result.get("status") != "not_found"),
     }
 
 
@@ -309,7 +346,7 @@ def export_dataset():
         "feature_created_at",
         "rating_created_at",
     ]
-    writer = csv.DictWriter(output, fieldnames=fieldnames)
+    writer = csv.DictWriter(output, fieldnames=fieldnames, extrasaction="ignore")
     writer.writeheader()
     writer.writerows(rows)
     output.seek(0)
@@ -323,9 +360,20 @@ def export_dataset():
 
 @router.get("/evaluation/export")
 def export_evaluation_dataset():
-    rows = get_evaluation_records()
+    mysql_rows = get_evaluation_records()
+    csv_rows = get_evaluation_backup_records()
+    rows_by_segment = {
+        (str(row["session_id"]), str(row["video_id"]), str(row["segment_index"])): row
+        for row in csv_rows
+    }
+    for row in mysql_rows:
+        rows_by_segment[
+            (str(row["session_id"]), str(row["video_id"]), str(row["segment_index"]))
+        ] = row
+    rows = list(rows_by_segment.values())
     output = StringIO()
     fieldnames = [
+        "evaluation_id",
         "participant_id",
         "session_id",
         "video_id",
@@ -350,7 +398,7 @@ def export_evaluation_dataset():
         "model_file_hash",
         "mapping_version",
     ]
-    writer = csv.DictWriter(output, fieldnames=fieldnames)
+    writer = csv.DictWriter(output, fieldnames=fieldnames, extrasaction="ignore")
     writer.writeheader()
     writer.writerows(rows)
     output.seek(0)

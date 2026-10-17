@@ -10,7 +10,7 @@ This final-year research project collects anonymous behavioral data while learne
 - Group ID: R26-SE-004
 - Researcher: Subasinghe M.H.R.I. (IT22089786)
 - Institution: Sri Lanka Institute of Information Technology
-- Current stage: deployed data collection plus a locally implemented model-evaluation workflow awaiting deployment
+- Current stage: deployed data collection and model-evaluation workflows
 
 ## 2. Technology and architecture
 
@@ -284,7 +284,7 @@ journalctl -u cognitive-load-api -n 100 --no-pager
 - The UI has no retry queue or idempotency key.
 - Source `feature_windows` and `paas_ratings` have no uniqueness constraints. Duplicate rows can produce a many-to-many join and inflate export row counts.
 - The runtime and SQL definitions of `model_experiment_dataset` differ because the runtime definition omits the unique key.
-- Participant-code uniqueness is checked in MySQL. If MySQL is unavailable but CSV writing succeeds, partial success lacks database-backed uniqueness.
+- Data-collection participant-code uniqueness depends on MySQL; evaluation codes are also checked against the evaluation CSV fallback.
 - Local CSV files have no documented off-machine backup or retention policy.
 - CORS permits every origin.
 - Legacy prediction endpoints remain callable and can load the model.
@@ -327,6 +327,9 @@ The evaluation page:
 - prevents duplicate segment rows and duplicate rating updates;
 - records the model version, SHA-256 hash, timestamps, and mapping version;
 - exports records through `GET /evaluation/export`.
+- falls back to locked, server-side CSV files for sessions, hidden predictions, and ratings when MySQL is unavailable.
+
+Evaluation fallback files are `data_backups/evaluation_sessions_backup.csv`, `data_backups/evaluation_predictions_backup.csv`, and `data_backups/evaluation_ratings_backup.csv`. Linux file locking protects writes across the two API workers. The evaluation export merges MySQL and fallback records by session, video, and segment, with MySQL taking precedence.
 
 The participant scale uses `Moderate` for option 3 while the model class is `Medium`. Both original labels are preserved. Agreement uses the documented mapping `self-report-5-to-model-classes-v1`, which maps rating 3 (`Moderate`) to model class `Medium` and otherwise compares the same named levels.
 
