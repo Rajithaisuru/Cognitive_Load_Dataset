@@ -2,8 +2,16 @@ import unittest
 from datetime import datetime, timedelta, timezone
 from unittest.mock import patch
 
-from app.api.routes import create_evaluation_prediction, submit_evaluation_segment_rating
-from app.schemas.evaluation import EvaluationPredictionInput, EvaluationRatingInput
+from app.api.routes import (
+    create_evaluation_prediction,
+    create_evaluation_session,
+    submit_evaluation_segment_rating,
+)
+from app.schemas.evaluation import (
+    EvaluationPredictionInput,
+    EvaluationRatingInput,
+    EvaluationSessionInput,
+)
 from app.services.evaluation_service import (
     FEATURE_COLUMNS,
     get_comparison_model_label,
@@ -89,6 +97,25 @@ class EvaluationRouteTests(unittest.TestCase):
         self.assertNotIn("model_prediction_value", response)
         self.assertNotIn("model_prediction_label", response)
         self.assertNotIn("model_confidence", response)
+
+    def test_session_input_accepts_browser_generated_participant_code(self):
+        data = EvaluationSessionInput(video_id="L101", participant_id="E1A2B3")
+
+        self.assertEqual(data.participant_id, "E1A2B3")
+
+    @patch("app.api.routes.save_evaluation_session")
+    @patch("app.api.routes.evaluation_participant_exists", return_value=False)
+    def test_session_uses_browser_generated_participant_code(
+        self, mock_exists, mock_save
+    ):
+        mock_save.return_value = 1
+
+        response = create_evaluation_session(
+            EvaluationSessionInput(video_id="L101", participant_id="E1A2B3")
+        )
+
+        self.assertEqual(response["participant_id"], "E1A2B3")
+        self.assertTrue(response["session_id"].startswith("E1A2B3-"))
 
     @patch("app.api.routes.submit_evaluation_rating")
     def test_rating_response_reveals_stored_prediction(self, mock_submit):

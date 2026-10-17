@@ -5,6 +5,10 @@ from pydantic import BaseModel, Field
 
 class EvaluationSessionInput(BaseModel):
     video_id: str = Field(min_length=1, max_length=50)
+    participant_id: str | None = Field(
+        default=None,
+        pattern=r"^E[A-Z0-9]{5}$",
+    )
 
 
 class EvaluationPredictionInput(BaseModel):

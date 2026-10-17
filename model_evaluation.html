@@ -435,7 +435,7 @@
             }
         });
 
-        generateBtn.addEventListener("click", createSession);
+        generateBtn.addEventListener("click", generateParticipantCode);
         startBtn.addEventListener("click", startSession);
         retryPredictionBtn.addEventListener("click", createHiddenPrediction);
         document.querySelectorAll('input[name="effort"]').forEach((input) => {
@@ -447,27 +447,46 @@
         submitRatingBtn.addEventListener("click", submitRating);
         document.getElementById("continueBtn").addEventListener("click", continueEvaluation);
 
-        async function createSession() {
+        function generateParticipantCode() {
             if (!consentAgree.checked) return;
-            videoId = videoIdSelect.value;
+            const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+            const randomValues = new Uint32Array(5);
+            crypto.getRandomValues(randomValues);
+            participantId = "E";
+            for (let index = 0; index < 5; index += 1) {
+                participantId += alphabet[randomValues[index] % alphabet.length];
+            }
+            sessionId = "";
+            participantCode.value = participantId;
             generateBtn.disabled = true;
+            sessionStatus.textContent = "Not started";
+            eventStatus.textContent = "Code generated. Start when ready.";
+        }
+
+        async function createSession() {
+            if (!consentAgree.checked || !participantId) return;
+            videoId = videoIdSelect.value;
             eventStatus.textContent = "Creating evaluation session...";
             try {
-                const result = await postJson("/evaluation/sessions", { video_id: videoId });
+                const result = await postJson("/evaluation/sessions", {
+                    video_id: videoId,
+                    participant_id: participantId,
+                });
                 participantId = result.participant_id;
                 sessionId = result.session_id;
                 participantCode.value = participantId;
                 sessionStatus.textContent = sessionId;
-                eventStatus.textContent = "Code generated. Start when ready.";
+                return true;
             } catch (error) {
                 generateBtn.disabled = false;
-                eventStatus.textContent = `Could not create session: ${error.message}`;
+                eventStatus.textContent = `Could not start evaluation: ${error.message}`;
+                return false;
             }
         }
 
         async function startSession() {
-            if (!participantId || !sessionId) await createSession();
-            if (!participantId || !sessionId) return;
+            if (!participantId) generateParticipantCode();
+            if (!sessionId && !(await createSession())) return;
             videoId = videoIdSelect.value;
             participantCode.disabled = true;
             videoIdSelect.disabled = true;

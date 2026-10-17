@@ -101,8 +101,15 @@ def create_evaluation_session(data: EvaluationSessionInput):
     alphabet = string.ascii_uppercase + string.digits
 
     for _ in range(20):
-        participant_id = "E" + "".join(secrets.choice(alphabet) for _ in range(5))
+        participant_id = data.participant_id or (
+            "E" + "".join(secrets.choice(alphabet) for _ in range(5))
+        )
         if evaluation_participant_exists(participant_id):
+            if data.participant_id:
+                raise HTTPException(
+                    status_code=409,
+                    detail="Participant code already exists. Generate a new code.",
+                )
             continue
 
         session_data = {
@@ -118,6 +125,9 @@ def create_evaluation_session(data: EvaluationSessionInput):
                 "session_id": session_data["session_id"],
                 "video_id": data.video_id,
             }
+
+        if data.participant_id:
+            break
 
     raise HTTPException(status_code=503, detail="Could not create an evaluation session")
 
